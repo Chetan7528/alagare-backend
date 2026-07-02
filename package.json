@@ -1,0 +1,58 @@
+{
+  "name": "alagare-backend",
+  "version": "1.0.0",
+  "description": "Alagare Backend API",
+  "main": "src/server.js",
+ "scripts": {
+    "test": "jest --clearCache && jest --coverage",
+    "dev": "cross-env NODE_ENV=development nodemon src/server.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "prettier": "prettier --write .",
+    "prettier:check": "prettier --check .",
+    "format": "npm run prettier && npm run lint:fix",
+    "build": "npm run prettier && npm run lint:fix",
+    "start": "pm2 start src/server.js -i max -f",
+    "restart": "pm2 restart all --update-env",
+    "start:dev": "nodemon src/server.js"
+  },
+  "_moduleAliases": {
+    "@src": "src",
+    "@config": "src/config",
+    "@controllers": "src/controllers",
+    "@middlewares": "src/middlewares",
+    "@models": "src/models",
+    "@routes": "src/routes",
+    "@services": "src/services",
+    "@helper": "src/helper",
+    "@responses": "src/responses",
+    "@lib": "src/lib"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.10.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "module-alias": "^2.2.3",
+    "moment": "^2.30.1",
+    "mongoose": "^9.6.2",
+    "morgan": "^1.10.1",
+    "multer": "^2.1.1",
+    "multer-storage-cloudinary": "^4.0.0",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "postmark": "^4.0.7"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "nodemon": "^3.1.10",
+    "prettier": "^3.0.0"
+  }
+}
