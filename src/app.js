@@ -1,44 +1,59 @@
-const express = require("express");
-const cors = require("cors");
-const helmet = require("helmet");
-const morgan = require("morgan");
-const passport = require("passport");
-const connectDB = require("@config/db");
+'use strict';
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const passport = require('passport');
+const connectDB = require('@config/db');
+const { seedBusData } = require('@lib/seedBusData');
+const { seedDefaultApiUser } = require('@lib/seedApiUser');
 
-// Load environment variables
-require("dotenv").config();
+require('dotenv').config();
+require('@config/passport');
 
-// Initialize Passport configuration
-require("@config/passport");
-
-// Initialize Express app
 const app = express();
 
-// Connect to Database
-connectDB();
+connectDB().then(async () => {
+  try {
+    await seedDefaultApiUser();
+    await seedBusData();
+  } catch (err) {
+    console.error('Seed error:', err.message);
+  }
+});
 
-// Middleware
 app.use(express.json());
 app.use(cors());
 app.use(helmet());
-app.use(morgan("dev"));
-
-// Initialize Passport
+app.use(morgan('dev'));
 app.use(passport.initialize());
 
-// Routes
+
+const apiKeyAuth = require('@middlewares/apiKeyMiddleware');
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api-users')) {
+    return next();
+  }
+  // Public bootstrap: app fetches X-API-Key by setup name (no key required)
+  if (req.path.startsWith('/setup')) {
+    return next();
+  }
+  if (req.path === '/' || req.path === '') {
+    return next();
+  }
+  return apiKeyAuth(req, res, next);
+});
+
 const routes = require('./routes');
 routes(app);
 
-// Health Check Route
-app.get("/", (req, res) => {
-  res.status(200).json({ status: "OK" });
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'OK' });
 });
 
-// Global Error Handler
 app.use((err, req, res, next) => {
-  console.error(req);
-  res.status(500).json({ error: "Something went wrong!" });
+  console.error(err);
+  res.status(500).json({ error: 'Something went wrong!' });
 });
 
 module.exports = app;

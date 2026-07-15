@@ -1,35 +1,46 @@
 'use strict';
 const crypto = require('crypto');
-const ApiPartner = require('@models/ApiPartner');
+const ApiUser = require('@models/ApiUser');
 const response = require('@responses');
 
-/**
- * Third-party API authentication (AdiVAH-style).
- * Partners pass: X-API-Key: alg_live_xxxx
- */
+
 const apiKeyAuth = async (req, res, next) => {
   try {
     const apiKey = req.headers['x-api-key'];
+
     if (!apiKey) {
-      return response.unAuthorize(res, {
-        message: 'API key required. Include header: X-API-Key',
-      });
+      return response.unAuthorize(res, { message: 'API key is required' });
     }
 
-    const apiKeyHash = crypto.createHash('sha256').update(String(apiKey)).digest('hex');
-    const partner = await ApiPartner.findOne({ apiKeyHash, isActive: true });
+    const [id, signature] = String(apiKey).split('.');
 
-    if (!partner) {
-      return response.unAuthorize(res, { message: 'Invalid or inactive API key' });
+    if (!id || !signature) {
+      return response.unAuthorize(res, { message: 'Invalid API key format' });
     }
 
-    partner.lastUsedAt = new Date();
-    await partner.save();
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.JWT_SECRET)
+      .update(id)
+      .digest('hex');
 
-    req.partner = partner;
+    if (signature !== expectedSignature) {
+      return response.unAuthorize(res, { message: 'Invalid API key' });
+    }
+
+    const apiUser = await ApiUser.findById(id);
+
+    if (!apiUser || !apiUser.is_active) {
+      return response.unAuthorize(res, { message: 'Invalid API key' });
+    }
+
+    if (new Date() > new Date(apiUser.expiry_date)) {
+      return response.unAuthorize(res, { message: 'API key has expired' });
+    }
+
+    req.apiUser = apiUser;
     return next();
   } catch (error) {
-    return response.error(res, error);
+    return response.unAuthorize(res, { message: 'Invalid API key' });
   }
 };
 

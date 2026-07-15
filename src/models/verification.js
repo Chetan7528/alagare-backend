@@ -16,6 +16,10 @@ const verificationSchema = new mongoose.Schema(
       default: false,
     },
     attempts: { type: Number, default: 0 },
+    api_user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ApiUser',
+    },
   },
   {
     timestamps: true,

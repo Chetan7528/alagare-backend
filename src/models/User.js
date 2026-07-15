@@ -20,6 +20,10 @@ const userSchema = new mongoose.Schema(
     isBlocked: { type: Boolean, default: false },
     isVerified: { type: Boolean, default: false },
     lastLogin: { type: Date },
+    api_user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ApiUser',
+    },
   },
   { timestamps: true },
 );

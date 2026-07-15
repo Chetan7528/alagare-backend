@@ -1,14 +1,13 @@
 const authRoutes = require('@routes/authRoutes');
-const partnerRoutes = require('@routes/partnerRoutes');
+const adminRoutes = require('@routes/adminRoutes');
+const apiUserRoutes = require('@routes/apiUserRoute');
+const setupRoutes = require('@routes/setupRoutes');
 const v1Routes = require('@routes/v1');
 
 module.exports = (app) => {
-  // Mobile & web user authentication (JWT)
+  app.use('/api-users', apiUserRoutes);
+  app.use('/setup', setupRoutes);
   app.use('/auth', authRoutes);
-
-  // Admin: manage third-party API partners
-  app.use('/auth/partners', partnerRoutes);
-
-  // Third-party bus booking API (X-API-Key) — AdiVAH-style
+  app.use('/api/admin', adminRoutes);
   app.use('/api/v1', v1Routes);
 };

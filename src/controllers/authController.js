@@ -7,6 +7,8 @@ const crypto = require('crypto');
 const response = require('@responses');
 const userHelper = require('../helper/user');
 const { sendOtpEmail } = require('@services/emailService');
+const { fileUrl } = require('@services/fileUpload');
+const { buildClientKeys } = require('@lib/clientKeys');
 
 module.exports = {
   
@@ -28,6 +30,7 @@ module.exports = {
         email,
         password: hashed,
         role: role === 'admin' ? 'admin' : 'user',
+        api_user: req.apiUser?._id,
       };
       if (phone) userPayload.phone = phone;
 
@@ -38,7 +41,13 @@ module.exports = {
       });
 
       const data = await User.findById(user._id).select('-password');
-      return response.created(res, { message: 'Registered successfully', data, token });
+      return response.created(res, {
+        message: 'Registered successfully',
+        data,
+        token,
+        apiKey: req.apiUser?.api_key || null,
+        keys: buildClientKeys(req.apiUser),
+      });
     } catch (error) {
       return response.error(res, error);
     }
@@ -69,7 +78,13 @@ module.exports = {
       });
 
       const userData = await User.findById(user._id).select('-password');
-      return response.ok(res, { message: 'Login successful', token, user: userData });
+      return response.ok(res, {
+        message: 'Login successful',
+        token,
+        user: userData,
+        apiKey: req.apiUser?.api_key || null,
+        keys: buildClientKeys(req.apiUser),
+      });
     } catch (error) {
       return response.error(res, error);
     }
@@ -96,6 +111,7 @@ module.exports = {
         user: user._id,
         otp,
         expiration_at: new Date(Date.now() + 5 * 60 * 1000),
+        api_user: req.apiUser?._id,
       });
 
       try {
@@ -169,6 +185,7 @@ module.exports = {
         user: user._id,
         otp,
         expiration_at: new Date(Date.now() + 5 * 60 * 1000),
+        api_user: req.apiUser?._id,
       });
 
       try {
@@ -241,7 +258,7 @@ module.exports = {
       const update = {};
       if (fullname) update.fullname = fullname;
       if (phone) update.phone = phone;
-      if (req.file) update.image = req.file.path;
+      if (req.file) update.image = fileUrl(req.file);
 
       const user = await User.findByIdAndUpdate(req.user._id, update, { new: true }).select(
         '-password',

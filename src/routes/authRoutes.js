@@ -20,13 +20,7 @@ const auth = require('@middlewares/authMiddleware');
 const { upload } = require('@services/fileUpload');
 const busController = require('@controllers/busController');
 
-/** Attach partner context for mobile JWT bus endpoints */
-const mobileBusContext = (req, res, next) => {
-  req.partner = { companyName: 'Alagare Mobile' };
-  next();
-};
-
-// Public
+// Public (still need X-API-Key from global middleware)
 router.post('/register', register);
 router.post('/login', login);
 router.post('/send-otp', sendOTP);
@@ -34,15 +28,31 @@ router.post('/verify-otp', verifyOTP);
 router.post('/resend-otp', resendOTP);
 router.post('/change-password', changePassword);
 
-// User (protected)
+// User (protected JWT)
 router.get('/profile', auth(), myProfile);
 router.put('/profile', auth(), upload.single('image'), updateProfile);
 router.put('/password', auth(), updatePassword);
 
-// Mobile app bus APIs (JWT — same data as /api/v1 for logged-in users)
-router.get('/buses/routes', auth(), mobileBusContext, busController.listRoutes);
-router.post('/buses/search', auth(), mobileBusContext, busController.searchBuses);
-router.post('/buses/book', auth(), mobileBusContext, busController.bookBus);
+// Mobile app bus APIs (JWT + X-API-Key — tenant = req.apiUser)
+router.get('/buses/home', auth(), busController.getHomeContent);
+router.get('/buses/cities', auth(), busController.searchCities);
+router.get('/buses/routes', auth(), busController.listRoutes);
+router.get('/buses/routes/:routeId/seats', auth(), busController.getRouteSeats);
+router.get('/buses/routes/:routeId/details', auth(), busController.getTripDetails);
+router.post('/buses/search', auth(), busController.searchBuses);
+router.post('/buses/book', auth(), busController.bookBus);
+
+// Help & Support inquiries (JWT + X-API-Key)
+const inquiryController = require('@controllers/inquiryController');
+router.post('/inquiries', auth(), inquiryController.createInquiry);
+router.get('/inquiries', auth(), inquiryController.listMyInquiries);
+
+// Legal content — X-API-Key only (Sign Up before login)
+const contentController = require('@controllers/contentController');
+router.get('/content', contentController.getPublicContent);
+
+const settingsController = require('@controllers/settingsController');
+router.get('/settings', settingsController.getPublicSettings);
 
 // Admin
 router.get('/users', auth('admin'), getAllUsers);

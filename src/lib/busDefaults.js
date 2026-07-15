@@ -1,0 +1,137 @@
+'use strict';
+
+const RT101_OCCUPIED_SEATS = ['0-0', '1-2', '1-3', '2-1', '4-1', '6-0', '6-1', '8-2'];
+
+const BUS_TYPE_DEFAULTS = [
+  { name: 'AC Sleeper', rowCount: 10, seatsPerSide: 2, totalSeats: 40 },
+  { name: 'AC Seater', rowCount: 10, seatsPerSide: 2, totalSeats: 40 },
+  { name: 'Standard Class', rowCount: 9, seatsPerSide: 2, totalSeats: 36 },
+  { name: 'Premium Coach', rowCount: 10, seatsPerSide: 2, totalSeats: 40 },
+  { name: 'Luxury Coach', rowCount: 8, seatsPerSide: 2, totalSeats: 32 },
+];
+
+const typeSeats = (name) => {
+  const t = BUS_TYPE_DEFAULTS.find((x) => x.name === name);
+  return t ? t.totalSeats : 40;
+};
+
+const ROUTE_DEFAULTS = [
+  {
+    routeId: 'RT-101',
+    operator: 'Alagare Express',
+    from: 'Berlin',
+    to: 'Munich',
+    departure: '08:30',
+    arrival: '14:15',
+    duration: '5h 45m',
+    price: 42.5,
+    currency: 'EUR',
+    seats: typeSeats('AC Sleeper'),
+    seatsAvailable: 18,
+    busType: 'AC Sleeper',
+    status: 'active',
+    isPopular: true,
+    occupiedSeats: RT101_OCCUPIED_SEATS,
+  },
+  {
+    routeId: 'RT-102',
+    operator: 'Alagare Express',
+    from: 'Berlin',
+    to: 'Munich',
+    departure: '14:00',
+    arrival: '19:40',
+    duration: '5h 40m',
+    price: 38.0,
+    currency: 'EUR',
+    seats: typeSeats('AC Seater'),
+    seatsAvailable: 24,
+    busType: 'AC Seater',
+    status: 'active',
+    isPopular: true,
+    occupiedSeats: [],
+  },
+  {
+    routeId: 'RT-103',
+    operator: 'Berlin Express',
+    from: 'Berlin',
+    to: 'Munich',
+    departure: '06:15',
+    arrival: '12:00',
+    duration: '5h 45m',
+    price: 18.5,
+    currency: 'EUR',
+    seats: typeSeats('Standard Class'),
+    seatsAvailable: 12,
+    busType: 'Standard Class',
+    status: 'active',
+    isPopular: true,
+    occupiedSeats: [],
+  },
+  {
+    routeId: 'RT-104',
+    operator: 'FlixGo Premium',
+    from: 'Berlin',
+    to: 'Munich',
+    departure: '09:00',
+    arrival: '13:30',
+    duration: '4h 30m',
+    price: 42.0,
+    currency: 'EUR',
+    seats: typeSeats('Premium Coach'),
+    seatsAvailable: 4,
+    busType: 'Premium Coach',
+    status: 'active',
+    isPopular: false,
+    occupiedSeats: [],
+  },
+  {
+    routeId: 'RT-105',
+    operator: 'Berlin Express',
+    from: 'Berlin',
+    to: 'Munich',
+    departure: '08:30',
+    arrival: '14:15',
+    duration: '5h 45m',
+    price: 24.99,
+    currency: 'EUR',
+    seats: typeSeats('Standard Class'),
+    seatsAvailable: 12,
+    busType: 'Standard Class',
+    status: 'active',
+    isPopular: false,
+    occupiedSeats: [],
+  },
+  {
+    routeId: 'RT-201',
+    operator: 'TransiHub Partner',
+    from: 'London',
+    to: 'Paris',
+    departure: '07:15',
+    arrival: '13:00',
+    duration: '5h 45m',
+    price: 55.0,
+    currency: 'EUR',
+    seats: typeSeats('Luxury Coach'),
+    seatsAvailable: 12,
+    busType: 'Luxury Coach',
+    status: 'active',
+    isPopular: true,
+    occupiedSeats: [],
+  },
+];
+
+const HOME_CONTENT_DEFAULT = {
+  headerImage: '',
+  promoImage: '',
+  promoBadge: 'LIMITED OFFER',
+  promoTitle: 'Save 20% on First Trip',
+  promoDesc: 'Use code FIRSTRIDE at checkout for all intercity bookings this month.',
+  promoCode: 'FIRSTRIDE',
+};
+
+module.exports = {
+  ROUTE_DEFAULTS,
+  HOME_CONTENT_DEFAULT,
+  RT101_OCCUPIED_SEATS,
+  BUS_TYPE_DEFAULTS,
+};
