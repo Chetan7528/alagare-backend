@@ -54,6 +54,12 @@ router.get('/content', contentController.getPublicContent);
 const settingsController = require('@controllers/settingsController');
 router.get('/settings', settingsController.getPublicSettings);
 
+const invoiceController = require('@controllers/invoiceController');
+router.get('/invoice/:bookingRef', auth(), invoiceController.generateInvoice);
+
+router.get('/bookings', auth(), busController.myBookings);
+router.get('/bookings/:bookingRef', auth(), busController.bookingDetail);
+
 // Admin
 router.get('/users', auth('admin'), getAllUsers);
 router.get('/users/:id', auth('admin'), getUserById);

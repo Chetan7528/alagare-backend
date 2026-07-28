@@ -26,10 +26,26 @@ async function seedDefaultApiUser() {
     console.log('Default ApiUser seeded');
   } else {
     let dirty = false;
-    if (!apiUser.api_key) {
+
+    // Always verify stored key signature matches current JWT_SECRET.
+    // If mismatch (e.g. JWT_SECRET changed), regenerate.
+    if (apiUser.api_key) {
+      const crypto = require('crypto');
+      const [storedId, storedSig] = String(apiUser.api_key).split('.');
+      const expectedSig = crypto
+        .createHmac('sha256', process.env.JWT_SECRET)
+        .update(storedId || '')
+        .digest('hex');
+      if (storedSig !== expectedSig) {
+        console.log('[seedApiUser] API key signature mismatch — regenerating with current JWT_SECRET');
+        apiUser.api_key = apiUser.generateApiKey();
+        dirty = true;
+      }
+    } else {
       apiUser.api_key = apiUser.generateApiKey();
       dirty = true;
     }
+
     if (!apiUser.app_name) {
       apiUser.app_name = DEFAULT_APP_NAME;
       dirty = true;

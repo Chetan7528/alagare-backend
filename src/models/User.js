@@ -16,7 +16,7 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, minlength: 6 },
     phone: { type: String, trim: true },
     image: { type: String },
-    role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    role: { type: String, enum: ['user', 'admin', 'operator'], default: 'user' },
     isBlocked: { type: Boolean, default: false },
     isVerified: { type: Boolean, default: false },
     lastLogin: { type: Date },

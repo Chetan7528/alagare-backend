@@ -45,9 +45,11 @@ const toDisplayTimeAmPm = (val) => {
   return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
 };
 
-const toPublicRoute = (route) => ({
+const toPublicRoute = (route, logo = '') => ({
   routeId: route.routeId,
   operator: route.operator,
+  logo: logo || route.logo || route.operatorLogo || '',
+  operatorLogo: logo || route.logo || route.operatorLogo || '',
   from: route.from,
   to: route.to,
   departure: toDisplayTime(route.departure),
@@ -89,7 +91,7 @@ const priceBreakdown = (route, seatCount = 1) => {
 };
 
 const toTripDetails = (route, operatorDoc) => ({
-  ...toPublicRoute(route),
+  ...toPublicRoute(route, operatorDoc?.logo || ''),
   departureDisplay: toDisplayTimeAmPm(route.departure),
   arrivalDisplay: toDisplayTimeAmPm(route.arrival),
   departureStation: route.departureStation || `${route.from} Coach Station`,
@@ -143,10 +145,9 @@ module.exports = {
       const cities = await City.find(filter).sort({ name: 1 }).limit(12);
       return response.ok(res, {
         cities: cities.map((c) => ({
-          id: String(c._id),
-          label: c.country ? `${c.name}, ${c.country}` : c.name,
-          city: c.name,
-          country: c.country || '',
+          name: c.name,
+          country: c.country,
+          parentCity: c.parentCity,
         })),
       });
     } catch (error) {
@@ -183,6 +184,14 @@ module.exports = {
       const toNorm = String(to).trim().toLowerCase();
 
       const allRoutes = await BusRoute.find({ ...tenantFilter(req), status: 'active' });
+      const operators = await Operator.find(tenantFilter(req));
+      const logoMap = new Map();
+      operators.forEach((o) => {
+        if (o.name && o.logo) {
+          logoMap.set(o.name.trim().toLowerCase(), o.logo);
+        }
+      });
+
       const results = allRoutes
         .filter(
           (r) =>
@@ -191,7 +200,10 @@ module.exports = {
         .filter(
           (r) => r.to.toLowerCase().includes(toNorm) || toNorm.includes(r.to.toLowerCase()),
         )
-        .map(toPublicRoute);
+        .map((r) => {
+          const matchedLogo = logoMap.get((r.operator || '').trim().toLowerCase()) || '';
+          return toPublicRoute(r, matchedLogo);
+        });
 
       return response.ok(res, {
         api_user: req.apiUser.email,
@@ -355,6 +367,60 @@ module.exports = {
           api_user: req.apiUser.email,
         },
       });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  myBookings: async (req, res) => {
+    try {
+      const bookings = await Booking.find({
+        email: req.user.email,
+        api_user: req.apiUser._id,
+      }).sort({ createdAt: -1 });
+
+      const parseRoute = (route) => {
+        if (!route) return { from: '', to: '' };
+        const parts = route.split(/→|->|—>/).map(s => s.trim());
+        return { from: parts[0] || '', to: parts[1] || '' };
+      };
+
+      return response.ok(res, {
+        bookings: bookings.map((b) => {
+          const { from, to } = parseRoute(b.route);
+          return {
+            bookingRef: b.ref,
+            route: b.route,
+            from,
+            to,
+            passenger: b.passenger,
+            date: b.date,
+            departure: b.departure || '',
+            operator: b.operator,
+            seats: b.seats,
+            seatKeys: b.seatKeys,
+            amount: b.amount,
+            status: b.status,
+            createdAt: b.createdAt,
+          };
+        }),
+      });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  bookingDetail: async (req, res) => {
+    try {
+      const booking = await Booking.findOne({
+        ref: req.params.bookingRef,
+        email: req.user.email,
+        api_user: req.apiUser._id,
+      });
+      if (!booking) {
+        return response.notFound(res, { message: 'Booking not found' });
+      }
+      return response.ok(res, { booking });
     } catch (error) {
       return response.error(res, error);
     }

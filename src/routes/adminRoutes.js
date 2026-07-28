@@ -95,4 +95,14 @@ const {
 router.get('/settings', auth('admin'), getSettings);
 router.put('/settings', auth('admin'), updateSettings);
 
+const {
+  listCallbacks,
+  updateCallbackStatus,
+  deleteCallback,
+} = require('@controllers/operatorFleetController');
+
+router.get('/callbacks', auth('admin'), listCallbacks);
+router.put('/callbacks/:id/status', auth('admin'), updateCallbackStatus);
+router.delete('/callbacks/:id', auth('admin'), deleteCallback);
+
 module.exports = router;

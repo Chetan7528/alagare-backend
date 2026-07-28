@@ -45,6 +45,38 @@ const PRIVACY_BODY = `<p><strong>Alagare (TransiHub)</strong> respects your priv
 <p>Privacy questions: <strong>privacy@alagare.com</strong> or Help &amp; Support in the Alagare app.</p>
 <p><em>Last updated: July 2026</em></p>`;
 
+const OPERATOR_TERMS_BODY = `<p>Welcome to <strong>Alagare (TransiHub) Operator Portal</strong>. By registering as a bus operator or managing routes on our platform, you agree to these Terms of Service.</p>
+<h3>1. Operator Registration & Approval</h3>
+<p>All bus operators must submit valid company registration, operating permits, vehicle insurance, and bank details. Alagare reserves the right to approve, reject, or suspend any operator application following compliance verification.</p>
+<h3>2. Fleet, Schedules & Seat Management</h3>
+<p>Operators are responsible for maintaining accurate route details, departure times, bus types, seat availability, and fare pricing. Any schedule modification or cancellation must be updated promptly to inform passengers.</p>
+<h3>3. Commission & Settlement Payouts</h3>
+<p>Alagare deducts a standard platform commission per successful booking. Net earnings are transferred automatically to the operator's registered bank account according to the agreed payout cycle.</p>
+<h3>4. Safety, Standards & Passenger Service</h3>
+<p>Operators must ensure that all buses are roadworthy, clean, fully insured, and operated by licensed drivers. Boarding gate controllers must honor digital QR tickets issued through the Alagare platform.</p>
+<h3>5. Limitation of Liability</h3>
+<p>Alagare acts as a digital marketplace connecting passengers with transport operators. Operators remain solely liable for vehicle maintenance, passenger safety during transit, and route compliance under local transport laws.</p>
+<h3>6. Term & Termination</h3>
+<p>Either party may terminate the partnership upon written notice. Open bookings must be honored prior to account closure.</p>
+<p><em>Last updated: July 2026</em></p>`;
+
+const OPERATOR_PRIVACY_BODY = `<p><strong>Alagare (TransiHub)</strong> respects the privacy of our partner bus operators. This Privacy Policy explains what information we collect, how we use it, and your choices when you interact with our platform.</p>
+<h3>1. Information We Collect</h3>
+<ul>
+  <li><strong>Account & Business Information:</strong> Operator name, company registration, contact person details, email address, phone number, and banking details for payout settlement.</li>
+  <li><strong>Fleet & Route Data:</strong> Bus registration details, seat configurations, schedules, pricing, and route permits.</li>
+  <li><strong>Usage & Analytics:</strong> IP address, device type, browser information, and access logs to maintain system security and optimize portal performance.</li>
+</ul>
+<h3>2. How We Use Information</h3>
+<p>We use the collected information to verify operator applications, enable fleet management, process passenger bookings, issue automated payouts, provide customer support, and comply with transport regulations.</p>
+<h3>3. Data Sharing & Security</h3>
+<p>We do not sell operator or user personal data. Information is shared strictly with authorized payment processors, mapping services, and legal authorities when required by law. We employ industry-standard SSL encryption and secure data hosting.</p>
+<h3>4. Your Rights & Choices</h3>
+<p>Operators may review and update their company profile and contact details at any time from their operator dashboard. For account deletion or data inquiry, please contact our support team.</p>
+<h3>5. Policy Updates</h3>
+<p>We may update this Privacy Policy periodically. Continued use of our portal signifies acceptance of any updated terms.</p>
+<p><em>Last updated: July 2026</em></p>`;
+
 const FAQ_DEFAULTS = [
   {
     question: 'How do I book a bus ticket on Alagare?',
@@ -78,12 +110,53 @@ const FAQ_DEFAULTS = [
   },
 ];
 
+const OPERATOR_FAQ_DEFAULTS = [
+  {
+    question: 'How do I register my bus company on Alagare?',
+    answer:
+      'Fill out the registration form on our Operator Portal with your company details, operating permits, and contact info. Our onboarding team will verify your credentials and activate your account within 24 hours.',
+  },
+  {
+    question: 'How do payout settlements work for operators?',
+    answer:
+      'Earnings from confirmed passenger bookings minus our standard platform commission are automatically disbursed to your registered bank account on a weekly or bi-weekly cycle.',
+  },
+  {
+    question: 'How do I manage bus routes, schedules, and pricing?',
+    answer:
+      'Logged-in operators can use the Fleet & Routes section in the Operator Panel to add new buses, set departure/arrival times, configure seating layouts (sleeper/seater), and adjust fare prices in real time.',
+  },
+  {
+    question: 'How does digital QR ticket validation work at boarding gates?',
+    answer:
+      'Boarding gate staff can use the Alagare Gate Scanner app to scan passenger digital QR tickets. The system verifies ticket validity instantly and prevents duplicate boarding.',
+  },
+  {
+    question: 'What documents are required to complete operator onboarding?',
+    answer:
+      'You will need a valid Commercial Bus Registration, Route Operating Permit, Vehicle Insurance Certificate, GST/Tax ID, and Bank Account statement for payout setup.',
+  },
+];
+
 const APP_CONTENT_DEFAULT = {
   termsTitle: 'Terms of Service',
   termsBody: TERMS_BODY,
   privacyTitle: 'Privacy Policy',
   privacyBody: PRIVACY_BODY,
+  operatorTermsTitle: 'Operator Terms of Service',
+  operatorTermsBody: OPERATOR_TERMS_BODY,
+  operatorPrivacyTitle: 'Operator Privacy Policy',
+  operatorPrivacyBody: OPERATOR_PRIVACY_BODY,
   faqs: FAQ_DEFAULTS,
+  operatorFaqs: OPERATOR_FAQ_DEFAULTS,
 };
 
-module.exports = { APP_CONTENT_DEFAULT, TERMS_BODY, PRIVACY_BODY, FAQ_DEFAULTS };
+module.exports = {
+  APP_CONTENT_DEFAULT,
+  TERMS_BODY,
+  PRIVACY_BODY,
+  OPERATOR_TERMS_BODY,
+  OPERATOR_PRIVACY_BODY,
+  FAQ_DEFAULTS,
+  OPERATOR_FAQ_DEFAULTS,
+};
