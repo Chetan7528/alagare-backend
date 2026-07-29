@@ -61,9 +61,11 @@ module.exports = (app) => {
   app.get('/api/operator/fleet/bus-types', apiKeyAuth, authOperator('operator'), fleetCtrl.listBusTypes);
   app.post('/api/operator/fleet/bus-types', apiKeyAuth, authOperator('operator'), fleetCtrl.createBusType);
   app.delete('/api/operator/fleet/bus-types/:id', apiKeyAuth, authOperator('operator'), fleetCtrl.deleteBusType);
+  app.get('/api/operator/fleet/cities', apiKeyAuth, authOperator('operator'), fleetCtrl.listCities);
   app.get('/api/operator/bookings', apiKeyAuth, authOperator('operator'), fleetCtrl.listBookings);
   app.put('/api/operator/bookings/:id/status', apiKeyAuth, authOperator('operator'), fleetCtrl.updateBookingStatus);
   app.get('/api/operator/revenue', apiKeyAuth, authOperator('operator'), fleetCtrl.getOperatorRevenue);
+  app.post('/api/operator/payout-request', apiKeyAuth, authOperator('operator'), fleetCtrl.requestPayout);
   app.get('/api/operator/reports', apiKeyAuth, authOperator('operator'), fleetCtrl.getOperatorReports);
   app.get('/api/operator/profile', apiKeyAuth, authOperator('operator'), fleetCtrl.getProfile);
   app.put('/api/operator/profile', apiKeyAuth, authOperator('operator'), fleetCtrl.updateProfile);

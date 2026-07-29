@@ -49,6 +49,8 @@ const {
   createBusType,
   updateBusType,
   deleteBusType,
+  listSettlements,
+  updateSettlementStatus,
 } = require('@controllers/adminMasterController');
 
 router.get('/dashboard', auth('admin'), getDashboard);
@@ -70,6 +72,9 @@ router.get('/bus-types', auth('admin'), listBusTypes);
 router.post('/bus-types', auth('admin'), createBusType);
 router.put('/bus-types/:id', auth('admin'), updateBusType);
 router.delete('/bus-types/:id', auth('admin'), deleteBusType);
+
+router.get('/settlements', auth('admin'), listSettlements);
+router.put('/settlements/:id/status', auth('admin'), updateSettlementStatus);
 
 const {
   getContent,

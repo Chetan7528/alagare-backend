@@ -1,6 +1,7 @@
 'use strict';
 const City = require('@models/City');
 const BusType = require('@models/BusType');
+const PayoutSettlement = require('@models/PayoutSettlement');
 const response = require('@responses');
 
 const tenantFilter = (req) => ({ api_user: req.apiUser._id });
@@ -193,6 +194,36 @@ module.exports = {
       });
       if (!busType) return response.notFound(res, { message: 'Bus type not found' });
       return response.ok(res, { message: 'Bus type deleted' });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  listSettlements: async (req, res) => {
+    try {
+      const settlements = await PayoutSettlement.find(tenantFilter(req)).sort({ createdAt: -1 });
+      return response.ok(res, { settlements });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  updateSettlementStatus: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      if (!['pending', 'verified', 'settled', 'suspended', 'rejected'].includes(status)) {
+        return response.badReq(res, { message: 'Invalid status' });
+      }
+
+      const settlement = await PayoutSettlement.findOneAndUpdate(
+        { _id: id, ...tenantFilter(req) },
+        { status },
+        { new: true }
+      );
+
+      if (!settlement) return response.notFound(res, { message: 'Settlement request not found' });
+      return response.ok(res, { message: 'Settlement status updated', settlement });
     } catch (error) {
       return response.error(res, error);
     }

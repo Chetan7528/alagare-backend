@@ -7,6 +7,8 @@ const Operator = require('@models/Operator');
 const User = require('@models/User');
 const OperatorApplication = require('@models/OperatorApplication');
 const CallbackRequest = require('@models/CallbackRequest');
+const City = require('@models/City');
+const PayoutSettlement = require('@models/PayoutSettlement');
 const response = require('@responses');
 
 const getOperatorFilter = async (req) => {
@@ -465,9 +467,31 @@ const deleteCallback = async (req, res) => {
   }
 };
 
+const listCities = async (req, res) => {
+  try {
+    const cities = await City.find({ api_user: req.apiUser._id, status: 'active' }).sort({ name: 1 });
+    return response.ok(res, {
+      cities: cities.map((c) => ({
+        id: String(c._id),
+        name: c.name,
+        country: c.country || '',
+        parentCity: c.parentCity || '',
+      })),
+    });
+  } catch (error) {
+    return response.error(res, error);
+  }
+};
+
 const getOperatorRevenue = async (req, res) => {
   try {
     const filter = await getOperatorFilter(req);
+    const appDoc = await OperatorApplication.findOne({
+      email: req.user.email,
+      api_user: req.apiUser._id,
+    });
+    const defaultBank = appDoc?.bankAccount || (appDoc?.companyName ? `${appDoc.companyName} Registered Bank (A/C: *******8492)` : 'HDFC Bank (A/C: *******8492)');
+
     const operatorRoutes = await BusRoute.find({ ...filter });
     const routeIds = operatorRoutes.map((r) => r.routeId || String(r._id)).filter(Boolean);
 
@@ -490,29 +514,31 @@ const getOperatorRevenue = async (req, res) => {
 
     const platformCommission = Math.round(grossRevenue * 0.1);
     const netEarnings = grossRevenue - platformCommission;
-    const pendingBalance = Math.round(netEarnings * 0.3);
-    const settledAmount = netEarnings - pendingBalance;
 
-    const settlements = [
-      {
-        id: 'SET-98421',
-        date: new Date(Date.now() - 3 * 86400000).toISOString(),
-        period: 'Current Week',
-        amount: Math.round(settledAmount * 0.6),
-        commission: Math.round(grossRevenue * 0.06),
-        status: 'settled',
-        method: 'Direct Bank Transfer (NEFT)',
-      },
-      {
-        id: 'SET-97304',
-        date: new Date(Date.now() - 10 * 86400000).toISOString(),
-        period: 'Previous Week',
-        amount: Math.round(settledAmount * 0.4),
-        commission: Math.round(grossRevenue * 0.04),
-        status: 'settled',
-        method: 'Direct Bank Transfer (NEFT)',
-      },
-    ];
+    const settlementsDocs = await PayoutSettlement.find({
+      api_user: req.apiUser._id,
+      operator: filter.operator,
+    }).sort({ createdAt: -1 });
+
+    const totalSettledOrPending = settlementsDocs
+      .filter((s) => s.status !== 'suspended' && s.status !== 'rejected')
+      .reduce((acc, s) => acc + (s.requestedAmount || 0), 0);
+
+    const pendingBalance = Math.max(0, netEarnings - totalSettledOrPending);
+
+    const settlements = settlementsDocs.map((s) => ({
+      _id: String(s._id),
+      id: s.settlementId,
+      date: s.createdAt,
+      period: s.period || 'Current Settlement',
+      amount: s.netPayout,
+      commission: s.commissionDeducted,
+      requestedAmount: s.requestedAmount,
+      status: s.status,
+      method: s.paymentMethod,
+      bankDetails: s.bankDetails,
+      notes: s.notes,
+    }));
 
     return response.ok(res, {
       stats: {
@@ -520,11 +546,59 @@ const getOperatorRevenue = async (req, res) => {
         netEarnings,
         platformCommission,
         pendingBalance,
-        settledAmount,
         totalBookings: Math.max(bookings.length, operatorRoutes.length * 2),
         confirmedBookings: Math.max(validBookings.length, operatorRoutes.length * 2),
       },
+      bankAccount: defaultBank,
       settlements,
+    });
+  } catch (error) {
+    return response.error(res, error);
+  }
+};
+
+const requestPayout = async (req, res) => {
+  try {
+    const filter = await getOperatorFilter(req);
+    const { amount, bankDetails, notes } = req.body;
+    const requestedAmount = Number(amount);
+    if (!requestedAmount || isNaN(requestedAmount) || requestedAmount <= 0) {
+      return response.badReq(res, { message: 'Valid withdrawal amount is required' });
+    }
+
+    const commissionDeducted = Math.round(requestedAmount * 0.1);
+    const netPayout = requestedAmount - commissionDeducted;
+    const settlementId = `SET-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    const settlement = await PayoutSettlement.create({
+      settlementId,
+      operator: filter.operator,
+      requestedAmount,
+      commissionDeducted,
+      netPayout,
+      bankDetails: bankDetails || 'HDFC Bank (A/C: *******8492)',
+      notes: notes ? String(notes).trim() : '',
+      status: 'pending',
+      paymentMethod: 'Direct Bank Transfer (NEFT)',
+      period: 'Current Settlement',
+      api_user: req.apiUser._id,
+    });
+
+    return response.created(res, {
+      message: 'Payout request submitted successfully',
+      settlement: {
+        _id: String(settlement._id),
+        id: settlement.settlementId,
+        date: settlement.createdAt,
+        period: settlement.period,
+        amount: settlement.netPayout,
+        commission: settlement.commissionDeducted,
+        requestedAmount: settlement.requestedAmount,
+        status: settlement.status,
+        method: settlement.paymentMethod,
+        bankDetails: settlement.bankDetails,
+        notes: settlement.notes,
+      },
     });
   } catch (error) {
     return response.error(res, error);
@@ -622,6 +696,8 @@ module.exports = {
   listCallbacks,
   updateCallbackStatus,
   deleteCallback,
+  listCities,
   getOperatorRevenue,
   getOperatorReports,
+  requestPayout,
 };
