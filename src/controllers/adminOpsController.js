@@ -189,4 +189,70 @@ module.exports = {
       return response.error(res, error);
     }
   },
+
+  listUsers: async (req, res) => {
+    try {
+      const users = await User.find({ ...tenantFilter(req), isDeleted: { $ne: true }, role: { $ne: 'admin' } }).select('-password').sort({ createdAt: -1 });
+      const formatted = users.map((u) => ({
+        id: u._id,
+        _id: u._id,
+        name: u.fullname || u.name || 'User',
+        email: u.email,
+        phone: u.phone || 'N/A',
+        member: u.membership || (u.role === 'operator' ? 'Gold' : 'Standard'),
+        status: u.isBlocked ? 'inactive' : 'active',
+        trips: 0,
+        points: 0,
+        joined: u.createdAt ? new Date(u.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      }));
+      return response.ok(res, { users: formatted });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  updateUser: async (req, res) => {
+    try {
+      const { name, fullname, email, phone, member, membership, status } = req.body;
+      const user = await User.findByIdAndUpdate(
+        req.params.id,
+        {
+          ...(name || fullname ? { fullname: fullname || name } : {}),
+          ...(email ? { email: email.toLowerCase().trim() } : {}),
+          ...(phone !== undefined ? { phone } : {}),
+          ...(member || membership ? { membership: member || membership } : {}),
+          ...(status !== undefined ? { isBlocked: status === 'inactive' } : {}),
+        },
+        { new: true }
+      ).select('-password');
+      if (!user) return response.notFound(res, { message: 'User not found' });
+      return response.ok(res, {
+        message: 'User updated',
+        user: {
+          id: user._id,
+          name: user.fullname,
+          email: user.email,
+          phone: user.phone,
+          member: user.membership || 'Standard',
+          status: user.isBlocked ? 'inactive' : 'active',
+        },
+      });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  deleteUser: async (req, res) => {
+    try {
+      const user = await User.findByIdAndUpdate(
+        req.params.id,
+        { isDeleted: true },
+        { new: true }
+      );
+      if (!user) return response.notFound(res, { message: 'User not found' });
+      return response.ok(res, { message: 'User removed successfully' });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
 };

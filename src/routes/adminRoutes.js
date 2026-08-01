@@ -38,6 +38,9 @@ const {
   listBookings,
   updateBookingStatus,
   getDashboard,
+  listUsers,
+  updateUser,
+  deleteUser,
 } = require('@controllers/adminOpsController');
 
 const {
@@ -54,6 +57,10 @@ const {
 } = require('@controllers/adminMasterController');
 
 router.get('/dashboard', auth('admin'), getDashboard);
+
+router.get('/users', auth('admin'), listUsers);
+router.put('/users/:id', auth('admin'), updateUser);
+router.delete('/users/:id', auth('admin'), deleteUser);
 
 router.get('/operators', auth('admin'), listOperators);
 router.post('/operators', auth('admin'), createOperator);

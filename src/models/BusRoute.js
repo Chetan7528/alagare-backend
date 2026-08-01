@@ -18,6 +18,7 @@ const busRouteSchema = new mongoose.Schema(
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
     isPopular: { type: Boolean, default: false },
     occupiedSeats: { type: [String], default: [] },
+    ladiesSeats: { type: [String], default: ['0-1', '2-0', '5-2', '5-3', '7-1'] },
 
     /** Trip Details screen (admin-managed) */
     isExpress: { type: Boolean, default: true },
@@ -37,9 +38,19 @@ const busRouteSchema = new mongoose.Schema(
       default: 'Full refund up to 24h before departure',
       trim: true,
     },
+    cancellationPolicyDetail: {
+      type: String,
+      default: 'Full refund if cancelled 24 hours prior to departure. 50% refund between 12-24h. Non-refundable within 12 hours.',
+      trim: true,
+    },
     luggagePolicy: {
       type: String,
       default: '1 Carry-on + 1 Checked bag Included',
+      trim: true,
+    },
+    luggagePolicyDetail: {
+      type: String,
+      default: 'Includes 1 hand luggage (max 7kg) and 1 check-in bag (max 20kg). Excess baggage fee applies at gate.',
       trim: true,
     },
     benefitNote: {

@@ -142,13 +142,30 @@ const listRoutes = async (req, res) => {
 const createRoute = async (req, res) => {
   try {
     const filter = await getOperatorFilter(req);
-    const { from, to, departure, arrival, duration, price, busType, seats, status, isExpress, departureStation, arrivalStation } = req.body;
+    const {
+      from, to, departure, arrival, duration, price, busType, seats, status, isExpress,
+      departureStation, arrivalStation, ladiesSeats, facilities, cancellationPolicy, luggagePolicy, benefitNote,
+    } = req.body;
 
     if (!from || !to || !departure || !arrival || !duration || !price || !busType || !seats) {
       return response.badReq(res, { message: 'from, to, departure, arrival, duration, price, busType, seats are required' });
     }
 
     const routeId = `RT-${Date.now().toString(36).toUpperCase()}`;
+
+    let parsedFacilities = ['wifi', 'power', 'ac', 'reclining'];
+    if (Array.isArray(facilities)) {
+      parsedFacilities = facilities;
+    } else if (typeof facilities === 'string' && facilities.trim()) {
+      parsedFacilities = facilities.split(',').map((s) => s.trim()).filter(Boolean);
+    }
+
+    let parsedLadies = ['0-1', '2-0', '5-2', '5-3', '7-1'];
+    if (Array.isArray(ladiesSeats)) {
+      parsedLadies = ladiesSeats;
+    } else if (typeof ladiesSeats === 'string' && ladiesSeats.trim()) {
+      parsedLadies = ladiesSeats.split(',').map((s) => s.trim()).filter(Boolean);
+    }
 
     const route = await BusRoute.create({
       routeId,
@@ -166,6 +183,11 @@ const createRoute = async (req, res) => {
       isExpress: isExpress !== false,
       departureStation: departureStation || `${from} Coach Station`,
       arrivalStation: arrivalStation || `${to} Terminal`,
+      ladiesSeats: parsedLadies,
+      facilities: parsedFacilities,
+      cancellationPolicy: cancellationPolicy || 'Full refund up to 24h before departure',
+      luggagePolicy: luggagePolicy || '1 Carry-on + 1 Checked bag Included',
+      benefitNote: benefitNote || 'Standard Premier includes meal and lounge access.',
       api_user: req.apiUser._id,
     });
 
@@ -178,9 +200,18 @@ const createRoute = async (req, res) => {
 const updateRoute = async (req, res) => {
   try {
     const filter = await getOperatorFilter(req);
+    const updateData = { ...req.body };
+
+    if (typeof updateData.facilities === 'string') {
+      updateData.facilities = updateData.facilities.split(',').map((s) => s.trim()).filter(Boolean);
+    }
+    if (typeof updateData.ladiesSeats === 'string') {
+      updateData.ladiesSeats = updateData.ladiesSeats.split(',').map((s) => s.trim()).filter(Boolean);
+    }
+
     const route = await BusRoute.findOneAndUpdate(
       { _id: req.params.id, ...filter },
-      { $set: req.body },
+      { $set: updateData },
       { new: true },
     );
     if (!route) return response.notFound(res, { message: 'Route not found' });

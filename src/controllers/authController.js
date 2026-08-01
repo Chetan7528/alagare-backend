@@ -14,7 +14,7 @@ module.exports = {
   
   register: async (req, res) => {
     try {
-      const { fullname, email, password, phone, role } = req.body;
+      const { fullname, email, password, phone, gender, role } = req.body;
 
       if (!fullname || !email || !password) {
         return response.badReq(res, { message: 'fullname, email and password are required' });
@@ -33,6 +33,7 @@ module.exports = {
         api_user: req.apiUser?._id,
       };
       if (phone) userPayload.phone = phone;
+      if (gender) userPayload.gender = gender;
 
       const user = await User.create(userPayload);
 
@@ -245,7 +246,30 @@ module.exports = {
   myProfile: async (req, res) => {
     try {
       const user = await User.findById(req.user._id).select('-password');
-      return response.ok(res, { data: user });
+      if (!user) return response.notFound(res, { message: 'User not found' });
+      const Booking = require('../models/Booking');
+      const userEmail = (user.email || '').trim();
+      const userBookings = await Booking.find({
+        email: { $regex: new RegExp('^' + userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') },
+      });
+      const confirmedCount = userBookings.filter((b) => b.status === 'confirmed').length;
+      const totalTrips = userBookings.length;
+      const totalSpent = userBookings.reduce((sum, b) => sum + (b.amount || 0), 0);
+      const totalPoints = (confirmedCount > 0 ? confirmedCount : totalTrips) * 150 + Math.round(totalSpent * 2);
+
+      let computedMember = user.membership || 'Standard';
+      if (!user.membership) {
+        if (totalTrips >= 5) computedMember = 'Platinum';
+        else if (totalTrips >= 2) computedMember = 'Gold';
+        else computedMember = 'Standard';
+      }
+
+      const userData = user.toObject();
+      userData.trips = totalTrips;
+      userData.points = totalPoints;
+      userData.membership = computedMember;
+
+      return response.ok(res, { data: userData });
     } catch (error) {
       return response.error(res, error);
     }
@@ -254,10 +278,11 @@ module.exports = {
   // User: update own profile
   updateProfile: async (req, res) => {
     try {
-      const { fullname, phone } = req.body;
+      const { fullname, phone, gender } = req.body;
       const update = {};
       if (fullname) update.fullname = fullname;
       if (phone) update.phone = phone;
+      if (gender) update.gender = gender;
       if (req.file) update.image = fileUrl(req.file);
 
       const user = await User.findByIdAndUpdate(req.user._id, update, { new: true }).select(

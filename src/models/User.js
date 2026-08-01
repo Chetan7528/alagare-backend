@@ -15,10 +15,21 @@ const userSchema = new mongoose.Schema(
     },
     password: { type: String, required: true, minlength: 6 },
     phone: { type: String, trim: true },
+    gender: {
+      type: String,
+      enum: ['Male', 'Female', 'Other', 'male', 'female', 'other'],
+      default: 'Male',
+    },
     image: { type: String },
     role: { type: String, enum: ['user', 'admin', 'operator'], default: 'user' },
+    membership: {
+      type: String,
+      enum: ['Standard', 'Silver', 'Gold', 'Platinum'],
+      default: 'Standard',
+    },
     isBlocked: { type: Boolean, default: false },
     isVerified: { type: Boolean, default: false },
+    isDeleted: { type: Boolean, default: false },
     lastLogin: { type: Date },
     api_user: {
       type: mongoose.Schema.Types.ObjectId,

@@ -107,7 +107,13 @@ const toTripDetails = (route, operatorDoc) => ({
       : ['wifi', 'power', 'ac', 'reclining'],
   cancellationPolicy:
     route.cancellationPolicy || 'Full refund up to 24h before departure',
+  cancellationPolicyDetail:
+    route.cancellationPolicyDetail ||
+    'Full refund if cancelled 24 hours prior to departure. 50% refund between 12-24h. Non-refundable within 12 hours.',
   luggagePolicy: route.luggagePolicy || '1 Carry-on + 1 Checked bag Included',
+  luggagePolicyDetail:
+    route.luggagePolicyDetail ||
+    'Includes 1 hand luggage (max 7kg) and 1 check-in bag (max 20kg). Excess baggage fee applies at gate.',
   benefitNote:
     route.benefitNote || 'Standard Premier includes meal and lounge access.',
   pricing: priceBreakdown(route, 1),
@@ -248,6 +254,9 @@ module.exports = {
         rowCount: layout.rowCount,
         seatsPerSide: layout.seatsPerSide,
         occupiedSeats: route.occupiedSeats,
+        occupied: route.occupiedSeats,
+        ladiesSeats: route.ladiesSeats || ['0-1', '2-0', '5-2', '5-3', '7-1'],
+        ladies: route.ladiesSeats || ['0-1', '2-0', '5-2', '5-3', '7-1'],
         seatsAvailable: route.seatsAvailable,
       });
     } catch (error) {
@@ -295,6 +304,8 @@ module.exports = {
         phone,
         paymentMethod,
         date,
+        discountAmount = 0,
+        amount,
       } = req.body;
 
       if (!routeId || !passengers || !contactEmail) {
@@ -334,6 +345,12 @@ module.exports = {
       const bookingRef = `ALG-${Date.now().toString(36).toUpperCase()}`;
       const seatCount = seatList.length || Number(passengers) || 1;
       const pricing = priceBreakdown(route, seatCount);
+      let finalAmount = Number(amount) || pricing.total;
+      if (discountAmount > 0 && !amount) {
+        finalAmount = Math.max(0, Math.round((pricing.total - Number(discountAmount)) * 100) / 100);
+      }
+      pricing.discount = Number(discountAmount) || 0;
+      pricing.total = finalAmount;
 
       const booking = await Booking.create({
         ref: bookingRef,
@@ -345,7 +362,7 @@ module.exports = {
         date: date || '',
         seats: seatCount,
         seatKeys: seatList,
-        amount: pricing.total,
+        amount: finalAmount,
         status: 'confirmed',
         api_user: req.apiUser._id,
       });
@@ -421,6 +438,124 @@ module.exports = {
         return response.notFound(res, { message: 'Booking not found' });
       }
       return response.ok(res, { booking });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  applyCoupon: async (req, res) => {
+    try {
+      const { code, routeId, totalAmount } = req.body;
+      if (!code) {
+        return response.badReq(res, { message: 'Promo code is required' });
+      }
+      const Campaign = require('@models/Campaign');
+      const promoCode = String(code).trim().toUpperCase();
+      const campaign = await Campaign.findOne({
+        code: promoCode,
+        status: 'active',
+        ...tenantFilter(req),
+      });
+
+      if (!campaign) {
+        return response.badReq(res, { message: 'Invalid or expired promo code' });
+      }
+
+      if (campaign.routeId && campaign.routeId !== 'all' && campaign.routeId !== routeId) {
+        return response.badReq(res, { message: 'Promo code is not applicable for this route' });
+      }
+
+      const amount = Number(totalAmount) || 0;
+      let discount = Math.round(((amount * campaign.discountPercent) / 100) * 100) / 100;
+      if (campaign.maxDiscount > 0 && discount > campaign.maxDiscount) {
+        discount = campaign.maxDiscount;
+      }
+
+      const finalAmount = Math.max(0, Math.round((amount - discount) * 100) / 100);
+
+      return response.ok(res, {
+        message: 'Coupon applied successfully!',
+        code: campaign.code,
+        title: campaign.title,
+        discountPercent: campaign.discountPercent,
+        discount,
+        finalAmount,
+      });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  cancelBooking: async (req, res) => {
+    try {
+      const { bookingRef } = req.params;
+      const booking = await Booking.findOne({
+        ref: bookingRef,
+        email: req.user.email,
+        api_user: req.apiUser._id,
+      });
+
+      if (!booking) {
+        return response.notFound(res, { message: 'Booking not found' });
+      }
+
+      if (booking.status === 'cancelled') {
+        return response.badReq(res, { message: 'Booking is already cancelled' });
+      }
+
+      if (booking.date) {
+        const dateParts = String(booking.date).split('-');
+        if (dateParts.length === 3) {
+          const year = parseInt(dateParts[0], 10);
+          const month = parseInt(dateParts[1], 10) - 1;
+          const day = parseInt(dateParts[2], 10);
+          let hours = 23;
+          let minutes = 59;
+
+          if (booking.departure) {
+            const match = String(booking.departure).match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+            if (match) {
+              hours = parseInt(match[1], 10);
+              minutes = parseInt(match[2], 10);
+              const ampm = match[3] ? match[3].toUpperCase() : null;
+              if (ampm === 'PM' && hours < 12) hours += 12;
+              if (ampm === 'AM' && hours === 12) hours = 0;
+            }
+          }
+
+          const tripDate = new Date(year, month, day, hours, minutes);
+          if (Date.now() > tripDate.getTime()) {
+            return response.badReq(res, {
+              message: 'Cancellation window closed. Past or ongoing journeys cannot be cancelled.',
+            });
+          }
+        }
+      }
+
+      if (booking.routeId && Array.isArray(booking.seatKeys) && booking.seatKeys.length > 0) {
+        const route = await BusRoute.findOne({
+          routeId: booking.routeId,
+          api_user: req.apiUser._id,
+        });
+        if (route) {
+          route.occupiedSeats = route.occupiedSeats.filter(
+            (s) => !booking.seatKeys.includes(s),
+          );
+          route.seatsAvailable = Math.min(
+            route.seats,
+            route.seatsAvailable + booking.seatKeys.length,
+          );
+          await route.save();
+        }
+      }
+
+      booking.status = 'cancelled';
+      await booking.save();
+
+      return response.ok(res, {
+        message: 'Ticket cancelled successfully',
+        booking,
+      });
     } catch (error) {
       return response.error(res, error);
     }

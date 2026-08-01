@@ -41,6 +41,7 @@ router.get('/buses/routes/:routeId/seats', auth(), busController.getRouteSeats);
 router.get('/buses/routes/:routeId/details', auth(), busController.getTripDetails);
 router.post('/buses/search', auth(), busController.searchBuses);
 router.post('/buses/book', auth(), busController.bookBus);
+router.post('/buses/apply-coupon', auth(), busController.applyCoupon);
 
 // Help & Support inquiries (JWT + X-API-Key)
 const inquiryController = require('@controllers/inquiryController');
@@ -59,6 +60,7 @@ router.get('/invoice/:bookingRef', auth(), invoiceController.generateInvoice);
 
 router.get('/bookings', auth(), busController.myBookings);
 router.get('/bookings/:bookingRef', auth(), busController.bookingDetail);
+router.post('/bookings/:bookingRef/cancel', auth(), busController.cancelBooking);
 
 // Admin
 router.get('/users', auth('admin'), getAllUsers);
