@@ -26,7 +26,7 @@ const resolveSeatLayout = async (req, route) => {
   return { rowCount: 10, seatsPerSide: 2 };
 };
 
-/** App UI expects HH:mm — support both time-only and datetime values */
+
 const toDisplayTime = (val) => {
   if (!val) return '';
   if (/^\d{2}:\d{2}$/.test(String(val))) return String(val);
