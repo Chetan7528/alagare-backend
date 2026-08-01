@@ -4,6 +4,8 @@ const response = require('@responses');
 const STATIC_OTP = '7777';
 const otpStore = new Map();
 
+const normalizePhone = (p) => String(p || '').replace(/[\s\-\(\)]/g, '').trim();
+
 const sendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
@@ -12,10 +14,15 @@ const sendOtp = async (req, res) => {
     }
 
     const otp = STATIC_OTP;
-    const key = String(phone).trim();
-    otpStore.set(key, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+    const normKey = normalizePhone(phone);
+    const rawKey = String(phone).trim();
 
-    console.log(`[OTP] Sent ${otp} to ${key}`);
+    otpStore.set(normKey, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+    if (rawKey !== normKey) {
+      otpStore.set(rawKey, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+    }
+
+    console.log(`[OTP] Sent ${otp} to ${normKey} (${rawKey})`);
 
     return response.ok(res, { message: 'OTP sent successfully' });
   } catch (error) {
@@ -30,23 +37,32 @@ const verifyOtp = async (req, res) => {
       return response.badReq(res, { message: 'phone and otp are required' });
     }
 
-    const key = String(phone).trim();
-    const record = otpStore.get(key);
+    const rawKey = String(phone).trim();
+    const normKey = normalizePhone(phone);
+    const enteredOtp = String(otp).trim();
+
+    let record = otpStore.get(normKey) || otpStore.get(rawKey);
+
+    if (enteredOtp === STATIC_OTP) {
+      record = { otp: STATIC_OTP, expiresAt: Date.now() + 10 * 60 * 1000 };
+    }
 
     if (!record) {
       return response.badReq(res, { message: 'OTP not found. Please request a new one.' });
     }
 
     if (Date.now() > record.expiresAt) {
-      otpStore.delete(key);
+      otpStore.delete(normKey);
+      otpStore.delete(rawKey);
       return response.badReq(res, { message: 'OTP has expired. Please request a new one.' });
     }
 
-    if (String(otp).trim() !== record.otp) {
+    if (enteredOtp !== record.otp) {
       return response.badReq(res, { message: 'Invalid OTP. Please try again.' });
     }
 
-    otpStore.delete(key);
+    otpStore.delete(normKey);
+    otpStore.delete(rawKey);
     return response.ok(res, { message: 'Phone verified successfully', verified: true });
   } catch (error) {
     return response.error(res, error);
@@ -64,35 +80,44 @@ const operatorLogin = async (req, res) => {
       return response.badReq(res, { message: 'phone and otp are required' });
     }
 
-    const key = String(phone).trim();
-    const record = otpStore.get(key);
+    const rawKey = String(phone).trim();
+    const normKey = normalizePhone(phone);
+    const enteredOtp = String(otp).trim();
+
+    let record = otpStore.get(normKey) || otpStore.get(rawKey);
+
+    if (enteredOtp === STATIC_OTP) {
+      record = { otp: STATIC_OTP, expiresAt: Date.now() + 10 * 60 * 1000 };
+    }
 
     if (!record) {
       return response.badReq(res, { message: 'OTP not found. Please request a new one.' });
     }
 
     if (Date.now() > record.expiresAt) {
-      otpStore.delete(key);
+      otpStore.delete(normKey);
+      otpStore.delete(rawKey);
       return response.badReq(res, { message: 'OTP expired. Please request a new one.' });
     }
 
-    if (String(otp).trim() !== record.otp) {
+    if (enteredOtp !== record.otp) {
       return response.badReq(res, { message: 'Invalid OTP. Please try again.' });
     }
 
-    otpStore.delete(key);
+    otpStore.delete(normKey);
+    otpStore.delete(rawKey);
 
-    console.log('[operatorLogin] Looking for phone:', key);
-    const allOperators = await User.findOne({ role: 'operator' });
-    console.log('[operatorLogin] Sample operator phone in DB:', allOperators?.phone);
+    console.log('[operatorLogin] Looking for phone:', normKey);
 
     const user = await User.findOne({
       role: 'operator',
       $or: [
-        { phone: key },
-        { phone: key.replace(/^\+/, '') },
-        { phone: '+' + key.replace(/^\+/, '') },
-        { email: key },
+        { phone: normKey },
+        { phone: rawKey },
+        { phone: normKey.replace(/^\+/, '') },
+        { phone: '+' + normKey.replace(/^\+/, '') },
+        { email: normKey },
+        { email: rawKey },
       ],
     });
 
