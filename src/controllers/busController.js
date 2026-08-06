@@ -6,6 +6,7 @@ const Booking = require('@models/Booking');
 const City = require('@models/City');
 const Operator = require('@models/Operator');
 const response = require('@responses');
+const { notifyUser } = require('@services/notification');
 
 const tenantFilter = (req) => ({ api_user: req.apiUser._id });
 
@@ -306,6 +307,11 @@ module.exports = {
         date,
         discountAmount = 0,
         amount,
+        departure,
+        arrival,
+        departureStation,
+        arrivalStation,
+        busType,
       } = req.body;
 
       if (!routeId || !passengers || !contactEmail) {
@@ -360,12 +366,24 @@ module.exports = {
         routeId: route.routeId,
         operator: route.operator,
         date: date || '',
+        departure: departure || '',
+        arrival: arrival || '',
+        departureStation: departureStation || '',
+        arrivalStation: arrivalStation || '',
+        busType: busType || route.busType || '',
         seats: seatCount,
         seatKeys: seatList,
         amount: finalAmount,
         status: 'confirmed',
         api_user: req.apiUser._id,
       });
+
+      await notifyUser(
+        req.user,
+        'bookingConfirmed',
+        'Booking Confirmed',
+        `Your booking ${bookingRef} for ${route.from} → ${route.to} is confirmed.`,
+      );
 
       return response.created(res, {
         message: 'Booking confirmed successfully',
@@ -413,6 +431,9 @@ module.exports = {
             passenger: b.passenger,
             date: b.date,
             departure: b.departure || '',
+            arrival: b.arrival || '',
+            departureStation: b.departureStation || '',
+            arrivalStation: b.arrivalStation || '',
             operator: b.operator,
             seats: b.seats,
             seatKeys: b.seatKeys,
@@ -551,6 +572,13 @@ module.exports = {
 
       booking.status = 'cancelled';
       await booking.save();
+
+      await notifyUser(
+        req.user,
+        'tripUpdates',
+        'Booking Cancelled',
+        `Your booking ${booking.ref} for ${booking.route} has been cancelled.`,
+      );
 
       return response.ok(res, {
         message: 'Ticket cancelled successfully',

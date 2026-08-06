@@ -9,6 +9,8 @@ const userHelper = require('../helper/user');
 const { sendOtpEmail } = require('@services/emailService');
 const { fileUrl } = require('@services/fileUpload');
 const { buildClientKeys } = require('@lib/clientKeys');
+const Device = require('@models/Device');
+const { notifyUser } = require('@services/notification');
 
 module.exports = {
   
@@ -41,7 +43,8 @@ module.exports = {
         expiresIn: process.env.JWT_EXPIRES_IN || '7d',
       });
 
-      const data = await User.findById(user._id).select('-password');
+      const data = user.toObject();
+      delete data.password;
       return response.created(res, {
         message: 'Registered successfully',
         data,
@@ -78,7 +81,16 @@ module.exports = {
         expiresIn: process.env.JWT_EXPIRES_IN || '7d',
       });
 
-      const userData = await User.findById(user._id).select('-password');
+      if (req.body.device_token || req.body.player_id) {
+        await Device.updateOne(
+          { device_token: req.body.device_token },
+          { $set: { player_id: req.body.player_id, user: user._id } },
+          { upsert: true },
+        );
+      }
+
+      const userData = user.toObject();
+      delete userData.password;
       return response.ok(res, {
         message: 'Login successful',
         token,
@@ -257,12 +269,14 @@ module.exports = {
       const totalSpent = userBookings.reduce((sum, b) => sum + (b.amount || 0), 0);
       const totalPoints = (confirmedCount > 0 ? confirmedCount : totalTrips) * 150 + Math.round(totalSpent * 2);
 
-      let computedMember = user.membership || 'Standard';
-      if (!user.membership) {
-        if (totalTrips >= 5) computedMember = 'Platinum';
-        else if (totalTrips >= 2) computedMember = 'Gold';
-        else computedMember = 'Standard';
-      }
+      const TIER_RANK = { Standard: 0, Silver: 1, Gold: 2, Platinum: 3 };
+      let tripTier = 'Standard';
+      if (totalTrips >= 5) tripTier = 'Platinum';
+      else if (totalTrips >= 2) tripTier = 'Gold';
+
+      const storedMember = user.membership || 'Standard';
+      const computedMember =
+        TIER_RANK[tripTier] > (TIER_RANK[storedMember] ?? 0) ? tripTier : storedMember;
 
       const userData = user.toObject();
       userData.trips = totalTrips;
@@ -289,6 +303,47 @@ module.exports = {
         '-password',
       );
       return response.ok(res, { message: 'Profile updated', data: user });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  // User: get notification preferences
+  getNotificationSettings: async (req, res) => {
+    try {
+      const user = await User.findById(req.user._id).select('notificationPrefs');
+      return response.ok(res, { data: user.notificationPrefs });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  // User: update notification preferences
+  updateNotificationSettings: async (req, res) => {
+    try {
+      const allowedKeys = [
+        'bookingConfirmed', 'bookingReminder', 'tripUpdates',
+        'promoOffers', 'newRoutes', 'appAnnouncements',
+        'emailReceipts', 'emailOffers', 'pushEnabled', 'securityAlerts',
+      ];
+      const update = {};
+      allowedKeys.forEach((key) => {
+        if (typeof req.body[key] === 'boolean') {
+          update[`notificationPrefs.${key}`] = req.body[key];
+        }
+      });
+      // Security alerts cannot be disabled by the user, for their own safety
+      update['notificationPrefs.securityAlerts'] = true;
+
+      const user = await User.findByIdAndUpdate(
+        req.user._id,
+        { $set: update },
+        { new: true },
+      ).select('notificationPrefs');
+      return response.ok(res, {
+        message: 'Notification settings updated',
+        data: user.notificationPrefs,
+      });
     } catch (error) {
       return response.error(res, error);
     }
@@ -389,6 +444,15 @@ module.exports = {
         '-password',
       );
       if (!user) return response.notFound(res, { message: 'User not found' });
+
+      await notifyUser(
+        user,
+        'securityAlerts',
+        isBlocked ? 'Account Blocked' : 'Account Unblocked',
+        isBlocked
+          ? 'Your account has been blocked. Contact support if you believe this is a mistake.'
+          : 'Your account has been unblocked. You can sign in again.',
+      );
 
       return response.ok(res, {
         message: `User ${isBlocked ? 'blocked' : 'unblocked'} successfully`,
