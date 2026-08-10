@@ -20,6 +20,27 @@ const busRouteSchema = new mongoose.Schema(
     occupiedSeats: { type: [String], default: [] },
     ladiesSeats: { type: [String], default: ['0-1', '2-0', '5-2', '5-3', '7-1'] },
 
+    /** Dynamic Stops & Time Lock */
+    stops: [
+      {
+        stopName: { type: String, required: true },
+        eta: { type: String, required: true }, // Format HH:mm
+        location: {
+          lat: { type: Number },
+          lng: { type: Number }
+        }
+      }
+    ],
+
+    /** Live Tracking Details */
+    currentLocation: {
+      lat: { type: Number },
+      lng: { type: Number }
+    },
+    currentSpeed: { type: Number, default: 0 },
+    trackingStatus: { type: String, enum: ['scheduled', 'in-transit', 'arrived'], default: 'scheduled' },
+    lastPingAt: { type: Date },
+
     /** Trip Details screen (admin-managed) */
     isExpress: { type: Boolean, default: true },
     departureStation: { type: String, default: '', trim: true },

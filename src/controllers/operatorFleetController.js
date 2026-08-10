@@ -10,6 +10,7 @@ const CallbackRequest = require('@models/CallbackRequest');
 const City = require('@models/City');
 const PayoutSettlement = require('@models/PayoutSettlement');
 const response = require('@responses');
+const { fileUrl } = require('@services/fileUpload');
 
 const getOperatorFilter = async (req) => {
   const app = await OperatorApplication.findOne({
@@ -66,7 +67,12 @@ const getProfile = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   try {
-    const { fullname, phone, companyName, description, logo } = req.body;
+    const { fullname, phone, companyName, description } = req.body;
+    let logo = req.body.logo;
+    if (req.file) {
+      logo = fileUrl(req.file);
+    }
+
     const userUpdate = {};
     if (fullname !== undefined) userUpdate.fullname = String(fullname).trim();
     if (phone !== undefined) userUpdate.phone = String(phone).trim();
@@ -276,8 +282,10 @@ const deleteBusType = async (req, res) => {
 const listBookings = async (req, res) => {
   try {
     const filter = await getOperatorFilter(req);
-    const operatorRoutes = await BusRoute.find({ ...filter }).select('routeId');
+    const operatorRoutes = await BusRoute.find({ ...filter }).select('routeId departure');
     const routeIds = operatorRoutes.map((r) => r.routeId).filter(Boolean);
+    const routeMap = {};
+    operatorRoutes.forEach(r => { if (r.routeId) routeMap[r.routeId] = r.departure; });
 
     const query = {
       api_user: req.apiUser._id,
@@ -287,7 +295,9 @@ const listBookings = async (req, res) => {
       ],
     };
     const bookings = await Booking.find(query).sort({ createdAt: -1 });
-    return response.ok(res, { bookings: bookings.map(toBooking) });
+    return response.ok(res, { 
+      bookings: bookings.map(b => ({ ...toBooking(b), departureTime: routeMap[b.routeId] || '' })) 
+    });
   } catch (error) {
     return response.error(res, error);
   }
@@ -303,19 +313,33 @@ const updateBookingStatus = async (req, res) => {
     const operatorRoutes = await BusRoute.find({ ...filter }).select('routeId');
     const routeIds = operatorRoutes.map((r) => r.routeId).filter(Boolean);
 
-    const booking = await Booking.findOneAndUpdate(
-      {
-        _id: req.params.id,
-        api_user: req.apiUser._id,
-        $or: [
-          { operator: filter.operator },
-          { routeId: { $in: routeIds } },
-        ],
-      },
-      { status },
-      { new: true },
-    );
+    const booking = await Booking.findOne({
+      _id: req.params.id,
+      api_user: req.apiUser._id,
+      $or: [
+        { operator: filter.operator },
+        { routeId: { $in: routeIds } },
+      ],
+    });
+
     if (!booking) return response.notFound(res, { message: 'Booking not found' });
+
+    const prevStatus = booking.status;
+    booking.status = status;
+    await booking.save();
+
+    if (booking.routeId && booking.seatKeys && booking.seatKeys.length > 0 && prevStatus !== status) {
+      const route = await BusRoute.findOne({ routeId: booking.routeId });
+      if (route) {
+        if (status === 'cancelled') {
+          route.occupiedSeats = (route.occupiedSeats || []).filter(s => !booking.seatKeys.includes(s));
+        } else if (status === 'confirmed' || status === 'pending') {
+          route.occupiedSeats = [...new Set([...(route.occupiedSeats || []), ...booking.seatKeys])];
+        }
+        route.seatsAvailable = Math.max(0, (route.seats || 40) - route.occupiedSeats.length);
+        await route.save();
+      }
+    }
     return response.ok(res, { message: 'Booking updated', booking: toBooking(booking) });
   } catch (error) {
     return response.error(res, error);
@@ -642,40 +666,58 @@ const getOperatorReports = async (req, res) => {
     const operatorRoutes = await BusRoute.find({ ...filter });
     const routeIds = operatorRoutes.map((r) => r.routeId || String(r._id)).filter(Boolean);
 
-    const bookings = await Booking.find({
+    const timeFilter = req.query.time || 'all';
+    const now = new Date();
+    let startDate;
+
+    if (timeFilter === 'today') {
+      startDate = new Date(now.setHours(0, 0, 0, 0));
+    } else if (timeFilter === 'month') {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (timeFilter === 'year') {
+      startDate = new Date(now.getFullYear(), 0, 1);
+    }
+
+    const bookingQuery = {
       api_user: req.apiUser._id,
       $or: [
         { operator: filter.operator },
         { routeId: { $in: routeIds } },
       ],
-    }).sort({ createdAt: -1 });
+    };
 
-    const totalBookings = bookings.length || (operatorRoutes.length * 4);
-    const confirmedCount = bookings.filter((b) => b.status === 'confirmed').length || (operatorRoutes.length * 3);
-    const pendingCount = bookings.filter((b) => b.status === 'pending').length || operatorRoutes.length;
-    const cancelledCount = bookings.filter((b) => b.status === 'cancelled').length || 0;
+    if (startDate) {
+      bookingQuery.createdAt = { $gte: startDate };
+    }
+
+    const bookings = await Booking.find(bookingQuery).sort({ createdAt: -1 });
+
+    const totalBookings = bookings.length;
+    const confirmedCount = bookings.filter((b) => b.status === 'confirmed').length;
+    const pendingCount = bookings.filter((b) => b.status === 'pending').length;
+    const cancelledCount = bookings.filter((b) => b.status === 'cancelled').length;
 
     let grossRevenue = bookings
       .filter((b) => b.status !== 'cancelled')
       .reduce((acc, b) => acc + (Number(b.amount || b.price) || 0), 0);
 
-    if (grossRevenue === 0 && operatorRoutes.length > 0) {
-      grossRevenue = operatorRoutes.reduce((acc, r) => acc + (Number(r.price || 45) * 8), 0);
-    } else if (grossRevenue === 0) {
-      grossRevenue = 1250;
-    }
-
-    const avgTicketValue = confirmedCount > 0 ? Math.round(grossRevenue / confirmedCount) : 45;
+    const avgTicketValue = confirmedCount > 0 ? Math.round(grossRevenue / confirmedCount) : 0;
     const cancellationRate = totalBookings > 0 ? Number(((cancelledCount / totalBookings) * 100).toFixed(1)) : 0;
 
     const routePerformance = operatorRoutes.map((r) => {
       const title = `${r.from || 'Origin'} → ${r.to || 'Destination'}`;
       const routeBookings = bookings.filter((b) => b.routeId === r.routeId || b.routeId === String(r._id));
-      const bookingsCount = routeBookings.length || 3;
-      const rev = routeBookings.reduce((acc, b) => acc + (Number(b.amount || b.price) || 0), 0) || (Number(r.price || 45) * bookingsCount);
-      const occupiedSeats = routeBookings.reduce((acc, b) => acc + Number(b.seats || 1), 0) || (bookingsCount * 2);
-      const totalCapacity = (r.totalSeats || r.seats || 40) * Math.max(1, bookingsCount);
-      const occupancyRate = Math.min(100, Math.max(40, Math.round((occupiedSeats / totalCapacity) * 100)));
+      const bookingsCount = routeBookings.length;
+      
+      const activeBookings = routeBookings.filter((b) => b.status !== 'cancelled');
+      const rev = activeBookings.reduce((acc, b) => acc + (Number(b.amount || b.price) || 0), 0);
+      const occupiedSeats = activeBookings.reduce((acc, b) => acc + Number(b.seats || 1), 0);
+      
+      const uniqueDates = new Set(activeBookings.map((b) => b.date).filter(Boolean));
+      const tripsCount = Math.max(1, uniqueDates.size);
+      
+      const totalCapacity = (r.totalSeats || r.seats || 40) * tripsCount;
+      const occupancyRate = totalCapacity > 0 ? Math.min(100, Math.round((occupiedSeats / totalCapacity) * 100)) : 0;
 
       return {
         routeId: r.routeId || String(r._id),

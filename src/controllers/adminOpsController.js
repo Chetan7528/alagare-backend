@@ -178,12 +178,25 @@ module.exports = {
       if (!['pending', 'confirmed', 'cancelled'].includes(status)) {
         return response.badReq(res, { message: 'Invalid status' });
       }
-      const booking = await Booking.findOneAndUpdate(
-        { _id: req.params.id, ...tenantFilter(req) },
-        { status },
-        { new: true },
-      );
+      const booking = await Booking.findOne({ _id: req.params.id, ...tenantFilter(req) });
       if (!booking) return response.notFound(res, { message: 'Booking not found' });
+      
+      const prevStatus = booking.status;
+      booking.status = status;
+      await booking.save();
+      
+      if (booking.routeId && booking.seatKeys && booking.seatKeys.length > 0 && prevStatus !== status) {
+        const route = await BusRoute.findOne({ routeId: booking.routeId });
+        if (route) {
+          if (status === 'cancelled') {
+            route.occupiedSeats = (route.occupiedSeats || []).filter(s => !booking.seatKeys.includes(s));
+          } else if (status === 'confirmed' || status === 'pending') {
+            route.occupiedSeats = [...new Set([...(route.occupiedSeats || []), ...booking.seatKeys])];
+          }
+          route.seatsAvailable = Math.max(0, (route.seats || 40) - route.occupiedSeats.length);
+          await route.save();
+        }
+      }
       return response.ok(res, { message: 'Booking updated', booking: toBooking(booking) });
     } catch (error) {
       return response.error(res, error);
@@ -193,18 +206,43 @@ module.exports = {
   listUsers: async (req, res) => {
     try {
       const users = await User.find({ ...tenantFilter(req), isDeleted: { $ne: true }, role: { $ne: 'admin' } }).select('-password').sort({ createdAt: -1 });
-      const formatted = users.map((u) => ({
-        id: u._id,
-        _id: u._id,
-        name: u.fullname || u.name || 'User',
-        email: u.email,
-        phone: u.phone || 'N/A',
-        member: u.membership || (u.role === 'operator' ? 'Gold' : 'Standard'),
-        status: u.isBlocked ? 'inactive' : 'active',
-        trips: 0,
-        points: 0,
-        joined: u.createdAt ? new Date(u.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-      }));
+      const bookings = await Booking.find(tenantFilter(req));
+      
+      const statsMap = {};
+      bookings.forEach(b => {
+        const email = (b.email || '').toLowerCase().trim();
+        if (!statsMap[email]) statsMap[email] = { totalTrips: 0, confirmedCount: 0, totalSpent: 0 };
+        statsMap[email].totalTrips += 1;
+        if (b.status === 'confirmed') statsMap[email].confirmedCount += 1;
+        statsMap[email].totalSpent += (b.amount || 0);
+      });
+
+      const formatted = users.map((u) => {
+        const email = (u.email || '').toLowerCase().trim();
+        const stats = statsMap[email] || { totalTrips: 0, confirmedCount: 0, totalSpent: 0 };
+        const totalPoints = (stats.confirmedCount > 0 ? stats.confirmedCount : stats.totalTrips) * 150 + Math.round(stats.totalSpent * 2);
+
+        let member = u.membership;
+        if (!member || member === 'Standard') {
+           if (stats.totalTrips >= 5) member = 'Platinum';
+           else if (stats.totalTrips >= 2) member = 'Gold';
+           else member = 'Standard';
+        }
+        if (u.role === 'operator') member = 'Gold';
+
+        return {
+          id: u._id,
+          _id: u._id,
+          name: u.fullname || u.name || 'User',
+          email: u.email,
+          phone: u.phone || 'N/A',
+          member: member,
+          status: u.isBlocked ? 'inactive' : 'active',
+          trips: stats.totalTrips,
+          points: totalPoints,
+          joined: u.createdAt ? new Date(u.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        };
+      });
       return response.ok(res, { users: formatted });
     } catch (error) {
       return response.error(res, error);

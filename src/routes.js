@@ -8,7 +8,7 @@ const apiKeyAuth = require('@middlewares/apiKeyMiddleware');
 const auth = require('@middlewares/authMiddleware');
 const multer = require('multer');
 const multerS3 = require('multer-s3');
-const { s3 } = require('@services/fileUpload');
+const { s3, upload } = require('@services/fileUpload');
 
 const docUpload = multer({
   storage: multerS3({
@@ -68,7 +68,7 @@ module.exports = (app) => {
   app.post('/api/operator/payout-request', apiKeyAuth, authOperator('operator'), fleetCtrl.requestPayout);
   app.get('/api/operator/reports', apiKeyAuth, authOperator('operator'), fleetCtrl.getOperatorReports);
   app.get('/api/operator/profile', apiKeyAuth, authOperator('operator'), fleetCtrl.getProfile);
-  app.put('/api/operator/profile', apiKeyAuth, authOperator('operator'), fleetCtrl.updateProfile);
+  app.put('/api/operator/profile', apiKeyAuth, authOperator('operator'), upload.single('logo'), fleetCtrl.updateProfile);
   app.get('/api/operator/pricing/routes', apiKeyAuth, authOperator('operator'), fleetCtrl.listRoutes);
   app.put('/api/operator/pricing/routes/:id', apiKeyAuth, authOperator('operator'), fleetCtrl.updateRoutePrice);
   app.get('/api/operator/pricing/campaigns', apiKeyAuth, authOperator('operator'), fleetCtrl.listCampaigns);

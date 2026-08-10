@@ -8,14 +8,39 @@ const normalizePhone = (p) => String(p || '').replace(/[\s\-\(\)]/g, '').trim();
 
 const sendOtp = async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, isLogin } = req.body;
     if (!phone || String(phone).trim().length < 7) {
       return response.badReq(res, { message: 'Valid phone number is required' });
     }
 
-    const otp = STATIC_OTP;
     const normKey = normalizePhone(phone);
     const rawKey = String(phone).trim();
+
+    if (isLogin) {
+      const User = require('@models/User');
+      const user = await User.findOne({
+        role: 'operator',
+        $or: [
+          { phone: normKey },
+          { phone: rawKey },
+          { phone: normKey.replace(/^\+/, '') },
+          { phone: '+' + normKey.replace(/^\+/, '') },
+          { email: normKey },
+          { email: rawKey },
+        ],
+      });
+
+      if (!user) {
+        return response.unAuthorize(res, {
+          message: 'No approved operator account found for this phone number.',
+        });
+      }
+      if (user.isBlocked) {
+        return response.unAuthorize(res, { message: 'Your account has been blocked. Contact support.' });
+      }
+    }
+
+    const otp = STATIC_OTP;
 
     otpStore.set(normKey, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
     if (rawKey !== normKey) {

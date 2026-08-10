@@ -199,18 +199,48 @@ module.exports = {
         }
       });
 
-      const results = allRoutes
-        .filter(
-          (r) =>
-            r.from.toLowerCase().includes(fromNorm) || fromNorm.includes(r.from.toLowerCase()),
-        )
-        .filter(
-          (r) => r.to.toLowerCase().includes(toNorm) || toNorm.includes(r.to.toLowerCase()),
-        )
-        .map((r) => {
-          const matchedLogo = logoMap.get((r.operator || '').trim().toLowerCase()) || '';
-          return toPublicRoute(r, matchedLogo);
+      const searchDateObj = new Date(date);
+      searchDateObj.setHours(0, 0, 0, 0);
+      const todayObj = new Date();
+      todayObj.setHours(0, 0, 0, 0);
+
+      let validRoutes = allRoutes
+        .filter((r) => r.from.toLowerCase().includes(fromNorm) || fromNorm.includes(r.from.toLowerCase()))
+        .filter((r) => r.to.toLowerCase().includes(toNorm) || toNorm.includes(r.to.toLowerCase()));
+
+      if (searchDateObj < todayObj) {
+        validRoutes = []; // Past dates are invalid
+      } else if (searchDateObj.getTime() === todayObj.getTime()) {
+        const now = new Date();
+        validRoutes = validRoutes.filter(r => {
+          let departureTimeStr = r.departure;
+          if (r.stops && r.stops.length > 0) {
+            const matchedStop = r.stops.find(s => s.stopName && (s.stopName.toLowerCase().includes(fromNorm) || fromNorm.includes(s.stopName.toLowerCase())));
+            if (matchedStop && matchedStop.eta) departureTimeStr = matchedStop.eta;
+          }
+          
+          if (!departureTimeStr) return true;
+          
+          const match = departureTimeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?$/);
+          if (match) {
+            let hours = parseInt(match[1], 10);
+            const mins = parseInt(match[2], 10);
+            const modifier = match[3] ? match[3].toUpperCase() : null;
+            if (modifier === 'PM' && hours < 12) hours += 12;
+            if (modifier === 'AM' && hours === 12) hours = 0;
+            
+            const depTime = new Date();
+            depTime.setHours(hours, mins, 0, 0);
+            return depTime > now;
+          }
+          return true;
         });
+      }
+
+      const results = validRoutes.map((r) => {
+        const matchedLogo = logoMap.get((r.operator || '').trim().toLowerCase()) || '';
+        return toPublicRoute(r, matchedLogo);
+      });
 
       return response.ok(res, {
         api_user: req.apiUser.email,
@@ -439,6 +469,7 @@ module.exports = {
             seatKeys: b.seatKeys,
             amount: b.amount,
             status: b.status,
+            routeId: b.routeId,
             createdAt: b.createdAt,
           };
         }),

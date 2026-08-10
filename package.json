@@ -52,7 +52,8 @@
     "passport-jwt": "^4.0.1",
     "pdfkit": "^0.19.1",
     "postmark": "^4.0.7",
-    "react-native-view-shot": "^5.1.0"
+    "react-native-view-shot": "^5.1.0",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "eslint": "^9.0.0",
