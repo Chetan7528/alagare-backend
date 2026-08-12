@@ -156,11 +156,9 @@ module.exports = {
         price: Number(price),
         currency: currency || 'EUR',
         seats: resolvedSeats,
-        seatsAvailable: calcSeatsAvailable(resolvedSeats, resolvedOccupied),
         busType,
         status: status || 'active',
         isPopular: Boolean(isPopular),
-        occupiedSeats: resolvedOccupied,
         isExpress: isExpress !== false,
         departureStation: departureStation || '',
         arrivalStation: arrivalStation || '',
@@ -194,7 +192,7 @@ module.exports = {
       const fields = [
         'operator', 'from', 'to', 'departure', 'arrival', 'duration',
         'price', 'currency', 'seats', 'busType', 'status', 'isPopular',
-        'occupiedSeats', 'isExpress', 'departureStation', 'arrivalStation',
+        'isExpress', 'departureStation', 'arrivalStation',
         'departureGate', 'arrivalPlatform', 'transferStation', 'transferTime',
         'transferNote', 'facilities', 'cancellationPolicy', 'luggagePolicy',
         'benefitNote', 'taxRate', 'serviceFee',
@@ -222,10 +220,6 @@ module.exports = {
       const arr = update.arrival ?? route.arrival;
       const autoDuration = calcDuration(dep, arr);
       if (autoDuration) update.duration = autoDuration;
-
-      const seats = update.seats ?? route.seats;
-      const occupied = update.occupiedSeats ?? route.occupiedSeats;
-      update.seatsAvailable = calcSeatsAvailable(seats, occupied);
 
       const updated = await BusRoute.findByIdAndUpdate(route._id, update, { new: true });
       return response.ok(res, { message: 'Route updated', route: toAdminRoute(updated) });
@@ -291,28 +285,14 @@ module.exports = {
 
   updateRouteSeats: async (req, res) => {
     try {
-      const { occupiedSeats } = req.body;
-      if (!Array.isArray(occupiedSeats)) {
-        return response.badReq(res, { message: 'occupiedSeats must be an array' });
-      }
-
       const route = await findRouteByParam(req, req.params.id);
       if (!route) {
         return response.notFound(res, { message: 'Route not found' });
       }
 
-      const updated = await BusRoute.findByIdAndUpdate(
-        route._id,
-        {
-          occupiedSeats,
-          seatsAvailable: calcSeatsAvailable(route.seats, occupiedSeats),
-        },
-        { new: true },
-      );
-
       return response.ok(res, {
-        message: 'Route seats updated',
-        route: toAdminRoute(updated),
+        message: 'Route seats update ignored (now dynamic)',
+        route: toAdminRoute(route),
       });
     } catch (error) {
       return response.error(res, error);

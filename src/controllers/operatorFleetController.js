@@ -33,6 +33,8 @@ const toBooking = (b) => ({
   routeId: b.routeId,
   operator: b.operator,
   date: b.date,
+  departure: b.departure,
+  arrival: b.arrival,
   seats: b.seats,
   seatKeys: b.seatKeys,
   amount: b.amount,
@@ -324,22 +326,9 @@ const updateBookingStatus = async (req, res) => {
 
     if (!booking) return response.notFound(res, { message: 'Booking not found' });
 
-    const prevStatus = booking.status;
     booking.status = status;
     await booking.save();
 
-    if (booking.routeId && booking.seatKeys && booking.seatKeys.length > 0 && prevStatus !== status) {
-      const route = await BusRoute.findOne({ routeId: booking.routeId });
-      if (route) {
-        if (status === 'cancelled') {
-          route.occupiedSeats = (route.occupiedSeats || []).filter(s => !booking.seatKeys.includes(s));
-        } else if (status === 'confirmed' || status === 'pending') {
-          route.occupiedSeats = [...new Set([...(route.occupiedSeats || []), ...booking.seatKeys])];
-        }
-        route.seatsAvailable = Math.max(0, (route.seats || 40) - route.occupiedSeats.length);
-        await route.save();
-      }
-    }
     return response.ok(res, { message: 'Booking updated', booking: toBooking(booking) });
   } catch (error) {
     return response.error(res, error);

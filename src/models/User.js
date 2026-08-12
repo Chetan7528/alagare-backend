@@ -7,14 +7,13 @@ const userSchema = new mongoose.Schema(
     fullname: { type: String, required: true, trim: true },
     email: {
       type: String,
-      required: true,
-      unique: true,
       lowercase: true,
       trim: true,
       match: [/^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/, 'Invalid email'],
+      sparse: true,
     },
-    password: { type: String, required: true, minlength: 6 },
-    phone: { type: String, trim: true },
+    password: { type: String, minlength: 6 },
+    phone: { type: String, required: true, unique: true, trim: true },
     gender: {
       type: String,
       enum: ['Male', 'Female', 'Other', 'male', 'female', 'other'],

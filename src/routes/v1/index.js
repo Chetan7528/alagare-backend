@@ -10,7 +10,7 @@ const {
   getTripDetails,
   searchCities,
 } = require('@controllers/busController');
-const { updateLocation } = require('@controllers/trackingController');
+const { updateLocation, startSimulation, stopSimulation } = require('@controllers/trackingController');
 
 /**
  * Sellable third-party API — X-API-Key already checked globally in app.js
@@ -37,5 +37,7 @@ router.get('/buses/routes/:routeId/details', getTripDetails);
 router.post('/buses/search', searchBuses);
 router.post('/buses/book', bookBus);
 router.post('/buses/tracking/location', updateLocation);
+router.post('/buses/tracking/simulate', startSimulation);
+router.post('/buses/tracking/stop-simulate', stopSimulation);
 
 module.exports = router;

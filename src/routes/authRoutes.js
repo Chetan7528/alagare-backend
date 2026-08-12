@@ -3,7 +3,9 @@ const express = require('express');
 const router = express.Router();
 const {
   register,
+  verifyRegister,
   login,
+  verifyLogin,
   sendOTP,
   verifyOTP,
   resendOTP,
@@ -24,7 +26,9 @@ const busController = require('@controllers/busController');
 
 // Public (still need X-API-Key from global middleware)
 router.post('/register', register);
+router.post('/verify-register', verifyRegister);
 router.post('/login', login);
+router.post('/verify-login', verifyLogin);
 router.post('/send-otp', sendOTP);
 router.post('/verify-otp', verifyOTP);
 router.post('/resend-otp', resendOTP);

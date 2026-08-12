@@ -237,9 +237,27 @@ module.exports = {
         });
       }
 
+      const activeBookings = await Booking.find({
+        ...tenantFilter(req),
+        date: date,
+        status: { $ne: 'cancelled' },
+      });
+      
+      const routeOccupiedMap = {};
+      activeBookings.forEach((b) => {
+        if (!routeOccupiedMap[b.routeId]) {
+          routeOccupiedMap[b.routeId] = 0;
+        }
+        routeOccupiedMap[b.routeId] += (b.seatKeys && b.seatKeys.length > 0) ? b.seatKeys.length : (Number(b.seats) || 1);
+      });
+
       const results = validRoutes.map((r) => {
         const matchedLogo = logoMap.get((r.operator || '').trim().toLowerCase()) || '';
-        return toPublicRoute(r, matchedLogo);
+        const occupiedCount = routeOccupiedMap[r.routeId] || 0;
+        const dynamicSeatsAvailable = Math.max(0, r.seats - occupiedCount);
+        const routeData = toPublicRoute(r, matchedLogo);
+        routeData.seatsAvailable = dynamicSeatsAvailable;
+        return routeData;
       });
 
       return response.ok(res, {
@@ -267,6 +285,7 @@ module.exports = {
 
   getRouteSeats: async (req, res) => {
     try {
+      const { date } = req.query;
       const route = await BusRoute.findOne({
         ...tenantFilter(req),
         routeId: req.params.routeId,
@@ -277,6 +296,23 @@ module.exports = {
         return response.notFound(res, { message: 'Route not found' });
       }
 
+      let occupiedSeats = [];
+      if (date) {
+        const bookings = await Booking.find({
+          ...tenantFilter(req),
+          routeId: route.routeId,
+          date: date,
+          status: { $ne: 'cancelled' },
+        });
+        occupiedSeats = bookings.reduce((acc, b) => {
+          if (b.seatKeys && Array.isArray(b.seatKeys)) {
+            acc.push(...b.seatKeys);
+          }
+          return acc;
+        }, []);
+        occupiedSeats = [...new Set(occupiedSeats)];
+      }
+
       const layout = await resolveSeatLayout(req, route);
 
       return response.ok(res, {
@@ -284,11 +320,11 @@ module.exports = {
         busType: route.busType,
         rowCount: layout.rowCount,
         seatsPerSide: layout.seatsPerSide,
-        occupiedSeats: route.occupiedSeats,
-        occupied: route.occupiedSeats,
+        occupiedSeats: occupiedSeats,
+        occupied: occupiedSeats,
         ladiesSeats: route.ladiesSeats || ['0-1', '2-0', '5-2', '5-3', '7-1'],
         ladies: route.ladiesSeats || ['0-1', '2-0', '5-2', '5-3', '7-1'],
-        seatsAvailable: route.seatsAvailable,
+        seatsAvailable: Math.max(0, route.seats - occupiedSeats.length),
       });
     } catch (error) {
       return response.error(res, error);
@@ -360,22 +396,38 @@ module.exports = {
       }
 
       const seatList = Array.isArray(seats) ? seats.map(String) : [];
+      const seatsRequested = seatList.length || Number(passengers) || 1;
+      
+      const existingBookings = await Booking.find({
+        ...tenantFilter(req),
+        routeId: route.routeId,
+        date: date || '',
+        status: { $ne: 'cancelled' },
+      });
+
+      const currentOccupied = existingBookings.reduce((acc, b) => {
+        if (b.seatKeys && Array.isArray(b.seatKeys)) acc.push(...b.seatKeys);
+        return acc;
+      }, []);
+
+      const currentOccupiedCountTotal = existingBookings.reduce((acc, b) => {
+        return acc + ((b.seatKeys && b.seatKeys.length > 0) ? b.seatKeys.length : (Number(b.seats) || 1));
+      }, 0);
+
+      const dynamicSeatsAvailable = Math.max(0, route.seats - currentOccupiedCountTotal);
+
       if (seatList.length > 0) {
-        const alreadyTaken = seatList.filter((s) => route.occupiedSeats.includes(s));
+        const alreadyTaken = seatList.filter((s) => currentOccupied.includes(s));
         if (alreadyTaken.length > 0) {
           return response.conflict(res, {
             message: 'Some seats are no longer available',
             seats: alreadyTaken,
           });
         }
+      }
 
-        if (seatList.length > route.seatsAvailable) {
-          return response.badReq(res, { message: 'Not enough seats available' });
-        }
-
-        route.occupiedSeats = [...new Set([...route.occupiedSeats, ...seatList])];
-        route.seatsAvailable = Math.max(0, route.seats - route.occupiedSeats.length);
-        await route.save();
+      if (seatsRequested > dynamicSeatsAvailable) {
+        return response.badReq(res, { message: 'Not enough seats available' });
       }
 
       const bookingRef = `ALG-${Date.now().toString(36).toUpperCase()}`;
@@ -581,23 +633,6 @@ module.exports = {
               message: 'Cancellation window closed. Past or ongoing journeys cannot be cancelled.',
             });
           }
-        }
-      }
-
-      if (booking.routeId && Array.isArray(booking.seatKeys) && booking.seatKeys.length > 0) {
-        const route = await BusRoute.findOne({
-          routeId: booking.routeId,
-          api_user: req.apiUser._id,
-        });
-        if (route) {
-          route.occupiedSeats = route.occupiedSeats.filter(
-            (s) => !booking.seatKeys.includes(s),
-          );
-          route.seatsAvailable = Math.min(
-            route.seats,
-            route.seatsAvailable + booking.seatKeys.length,
-          );
-          await route.save();
         }
       }
 

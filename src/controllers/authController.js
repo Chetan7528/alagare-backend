@@ -18,26 +18,74 @@ module.exports = {
     try {
       const { fullname, email, password, phone, gender, role } = req.body;
 
-      if (!fullname || !email || !password) {
-        return response.badReq(res, { message: 'fullname, email and password are required' });
+      if (!fullname || !phone) {
+        return response.badReq(res, { message: 'fullname and phone are required' });
       }
 
-      const exists = await User.findOne({ email });
-      if (exists) return response.badReq(res, { message: 'Email already registered' });
+      const exists = await User.findOne({ phone });
+      if (exists) {
+        if (exists.isVerified) {
+          return response.badReq(res, { message: 'Phone already registered and verified' });
+        }
+        // If exists but not verified, we can resend OTP (handled below by updating user and sending OTP)
+      }
 
-      const hashed = await bcrypt.hash(password, 10);
+      let hashed = null;
+      if (password) {
+        hashed = await bcrypt.hash(password, 10);
+      }
 
       const userPayload = {
         fullname,
-        email,
-        password: hashed,
+        phone,
         role: role === 'admin' ? 'admin' : 'user',
+        isVerified: false,
         api_user: req.apiUser?._id,
       };
-      if (phone) userPayload.phone = phone;
+      if (email) userPayload.email = email;
+      if (hashed) userPayload.password = hashed;
       if (gender) userPayload.gender = gender;
 
-      const user = await User.create(userPayload);
+      let user = exists;
+      if (user) {
+        await User.updateOne({ _id: user._id }, userPayload);
+      } else {
+        user = await User.create(userPayload);
+      }
+
+      // Generate OTP (Bypass 7777 as requested)
+      const otp = '7777'; 
+      await Verification.deleteMany({ user: phone });
+      await Verification.create({
+        user: phone,
+        otp,
+        expiration_at: new Date(Date.now() + 5 * 60 * 1000),
+      });
+
+      return response.created(res, {
+        message: 'OTP sent to your phone',
+        phone,
+      });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  verifyRegister: async (req, res) => {
+    try {
+      const { phone, otp } = req.body;
+      if (!phone || !otp) return response.badReq(res, { message: 'phone and otp are required' });
+
+      const ver = await Verification.findOne({ user: phone, otp });
+      if (!ver) return response.badReq(res, { message: 'Invalid OTP' });
+      if (ver.expiration_at < new Date()) return response.badReq(res, { message: 'OTP expired' });
+
+      const user = await User.findOne({ phone });
+      if (!user) return response.notFound(res, { message: 'User not found' });
+
+      user.isVerified = true;
+      await user.save();
+      await Verification.deleteMany({ user: phone });
 
       const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_EXPIRES_IN || '7d',
@@ -45,8 +93,9 @@ module.exports = {
 
       const data = user.toObject();
       delete data.password;
-      return response.created(res, {
-        message: 'Registered successfully',
+
+      return response.ok(res, {
+        message: 'Registered and verified successfully',
         data,
         token,
         apiKey: req.apiUser?.api_key || null,
@@ -59,23 +108,48 @@ module.exports = {
 
   login: async (req, res) => {
     try {
-      const { email, password } = req.body;
-      if (!email || !password) {
-        return response.badReq(res, { message: 'Email and password are required' });
+      const { phone } = req.body;
+      if (!phone) {
+        return response.badReq(res, { message: 'Phone is required' });
       }
 
-      const user = await User.findOne({ email });
-      if (!user) return response.unAuthorize(res, { message: 'No account found with this email' });
+      const user = await User.findOne({ phone });
+      if (!user) return response.unAuthorize(res, { message: 'No account found with this phone' });
+      if (user.isBlocked) return response.unAuthorize(res, { message: 'Your account has been blocked' });
 
-      const isMatch = await user.comparePassword(password);
-      if (!isMatch) return response.unAuthorize(res, { message: 'Incorrect password' });
+      const otp = '7777';
+      await Verification.deleteMany({ user: phone });
+      await Verification.create({
+        user: phone,
+        otp,
+        expiration_at: new Date(Date.now() + 5 * 60 * 1000),
+      });
 
-      if (user.isBlocked) {
-        return response.unAuthorize(res, { message: 'Your account has been blocked' });
-      }
+      return response.ok(res, {
+        message: 'OTP sent successfully',
+        phone
+      });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  verifyLogin: async (req, res) => {
+    try {
+      const { phone, otp } = req.body;
+      if (!phone || !otp) return response.badReq(res, { message: 'phone and otp are required' });
+
+      const ver = await Verification.findOne({ user: phone, otp });
+      if (!ver) return response.badReq(res, { message: 'Invalid OTP' });
+      if (ver.expiration_at < new Date()) return response.badReq(res, { message: 'OTP expired' });
+
+      const user = await User.findOne({ phone });
+      if (!user) return response.unAuthorize(res, { message: 'User not found' });
 
       user.lastLogin = new Date();
+      if (!user.isVerified) user.isVerified = true; // Auto verify if they manage to login
       await user.save();
+      await Verification.deleteMany({ user: phone });
 
       const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_EXPIRES_IN || '7d',
