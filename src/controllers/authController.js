@@ -108,26 +108,53 @@ module.exports = {
 
   login: async (req, res) => {
     try {
-      const { phone } = req.body;
-      if (!phone) {
-        return response.badReq(res, { message: 'Phone is required' });
+      const { phone, email, password } = req.body;
+
+      if (phone) {
+        const user = await User.findOne({ phone });
+        if (!user) return response.unAuthorize(res, { message: 'No account found with this phone' });
+        if (user.isBlocked) return response.unAuthorize(res, { message: 'Your account has been blocked' });
+
+        const otp = '7777';
+        await Verification.deleteMany({ user: phone });
+        await Verification.create({
+          user: phone,
+          otp,
+          expiration_at: new Date(Date.now() + 5 * 60 * 1000),
+        });
+
+        return response.ok(res, {
+          message: 'OTP sent successfully',
+          phone
+        });
       }
 
-      const user = await User.findOne({ phone });
-      if (!user) return response.unAuthorize(res, { message: 'No account found with this phone' });
+      if (!email || !password) {
+        return response.badReq(res, { message: 'Email/Password or Phone is required' });
+      }
+
+      const user = await User.findOne({ email });
+      if (!user) return response.unAuthorize(res, { message: 'Invalid credentials' });
       if (user.isBlocked) return response.unAuthorize(res, { message: 'Your account has been blocked' });
 
-      const otp = '7777';
-      await Verification.deleteMany({ user: phone });
-      await Verification.create({
-        user: phone,
-        otp,
-        expiration_at: new Date(Date.now() + 5 * 60 * 1000),
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) return response.unAuthorize(res, { message: 'Invalid credentials' });
+
+      user.lastLogin = new Date();
+      await user.save();
+
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+        expiresIn: process.env.JWT_EXPIRES_IN || '7d',
       });
 
+      const userData = user.toObject();
+      delete userData.password;
       return response.ok(res, {
-        message: 'OTP sent successfully',
-        phone
+        message: 'Login successful',
+        token,
+        user: userData,
+        apiKey: req.apiUser?.api_key || null,
+        keys: buildClientKeys(req.apiUser),
       });
     } catch (error) {
       return response.error(res, error);
