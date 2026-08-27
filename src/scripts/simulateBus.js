@@ -34,35 +34,28 @@ function getPointAlongRoute(routePoints, targetDistance) {
   return routePoints[routePoints.length - 1]; // Reached the end
 }
 
-const activeSimulations = {};
-
-const getOSRMRoute = async (startLat, startLng, endLat, endLng) => {
-  const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`;
-  try {
-    const res = await axios.get(url, {
-      headers: {
-        'User-Agent': 'AlagareBusTracker/1.0 (contact@alagare.com)'
-      }
-    });
-    const coordinates = res.data.routes[0].geometry.coordinates; // [lng, lat]
-    return coordinates.map(c => ({ lat: c[1], lng: c[0] }));
-  } catch (error) {
-    console.error("OSRM Error:", error.message);
-    return [];
-  }
-};
+const activeSimulations = new Map();
+const cancelledRoutes = new Set();
 
 const simulateBus = async (routeId, startLat, startLng, endLat, endLng, durationSeconds = 300) => {
   console.log(`Starting simulation for Route: ${routeId}`);
-  
-  if (activeSimulations[routeId]) {
-    console.log(`Stopping previous simulation for Route: ${routeId}`);
-    clearInterval(activeSimulations[routeId]);
-    delete activeSimulations[routeId];
+  cancelledRoutes.delete(routeId);
+
+  // Clear any existing active interval for this route
+  if (activeSimulations.has(routeId)) {
+    console.log(`Stopping previous active simulation for Route: ${routeId}`);
+    clearInterval(activeSimulations.get(routeId));
+    activeSimulations.delete(routeId);
   }
 
   const routePoints = await getOSRMRoute(startLat, startLng, endLat, endLng);
-  
+
+  // If route was stopped while OSRM was fetching
+  if (cancelledRoutes.has(routeId)) {
+    console.log(`Simulation for Route ${routeId} was cancelled before starting.`);
+    return;
+  }
+
   // Fallback to straight line if OSRM fails
   if (!routePoints.length) {
     console.log("OSRM Failed. Falling back to straight line simulation.");
@@ -76,19 +69,22 @@ const simulateBus = async (routeId, startLat, startLng, endLat, endLng, duration
     totalRouteDistance += getDistanceFromLatLonInMeters(routePoints[i].lat, routePoints[i].lng, routePoints[i+1].lat, routePoints[i+1].lng);
   }
 
-  // To make simulation faster for testing without losing realism, we simulate a speed of 120 km/h 
-  // (33.3 meters per second). In 5 seconds, it moves ~166 meters.
-  // 120 km/h is fast enough for testing but slow enough to track on map.
-  const simSpeedKmh = 120; 
-  const metersPerPing = (simSpeedKmh * 1000 / 3600) * 5; 
+  // Simulate realistic bus movement on highway
+  const simSpeedKmh = 100;
+  const PING_INTERVAL_SEC = 8;
+  const metersPerPing = (simSpeedKmh * 1000 / 3600) * PING_INTERVAL_SEC;
   let currentDistance = 0;
-
   let stepCount = 0;
 
-  const pingInterval = setInterval(async () => {
-    stepCount++;
-    currentDistance += metersPerPing;
-    
+  const sendPing = async () => {
+    if (cancelledRoutes.has(routeId)) {
+      if (activeSimulations.has(routeId)) {
+        clearInterval(activeSimulations.get(routeId));
+        activeSimulations.delete(routeId);
+      }
+      return;
+    }
+
     // Find exact physical location on the polyline
     const currentPoint = getPointAlongRoute(routePoints, currentDistance);
     const currentLat = currentPoint.lat;
@@ -96,9 +92,9 @@ const simulateBus = async (routeId, startLat, startLng, endLat, endLng, duration
 
     const hasArrived = currentDistance >= totalRouteDistance;
     const status = hasArrived ? 'arrived' : 'in-transit';
-    
-    // Display realistic dummy speed
-    const speed = simSpeedKmh - 5 + Math.floor(Math.random() * 10); 
+
+    // Realistic dummy speed variation
+    const speed = simSpeedKmh - 4 + Math.floor(Math.random() * 8);
 
     try {
       await axios.post(API_URL, {
@@ -109,8 +105,8 @@ const simulateBus = async (routeId, startLat, startLng, endLat, endLng, duration
         status,
       }, {
         headers: {
-          'x-api-key': API_KEY
-        }
+          'x-api-key': API_KEY,
+        },
       });
       console.log(`[${routeId}] Pinged location: ${currentLat.toFixed(5)}, ${currentLng.toFixed(5)} | Speed: ${speed} km/h | Status: ${status}`);
     } catch (error) {
@@ -119,22 +115,39 @@ const simulateBus = async (routeId, startLat, startLng, endLat, endLng, duration
 
     if (hasArrived) {
       console.log(`Simulation finished for Route: ${routeId}`);
-      clearInterval(activeSimulations[routeId]);
-      delete activeSimulations[routeId];
+      if (activeSimulations.has(routeId)) {
+        clearInterval(activeSimulations.get(routeId));
+        activeSimulations.delete(routeId);
+      }
     }
-  }, 5000);
-  
-  activeSimulations[routeId] = pingInterval;
+  };
+
+  // Immediate first ping
+  sendPing();
+
+  const pingInterval = setInterval(() => {
+    if (cancelledRoutes.has(routeId)) {
+      clearInterval(pingInterval);
+      activeSimulations.delete(routeId);
+      return;
+    }
+    stepCount++;
+    currentDistance += metersPerPing;
+    sendPing();
+  }, PING_INTERVAL_SEC * 1000);
+
+  activeSimulations.set(routeId, pingInterval);
 };
 
 const stopBusSimulation = (routeId) => {
-  if (activeSimulations[routeId]) {
+  cancelledRoutes.add(routeId);
+  if (activeSimulations.has(routeId)) {
     console.log(`Manually stopping simulation for Route: ${routeId}`);
-    clearInterval(activeSimulations[routeId]);
-    delete activeSimulations[routeId];
+    clearInterval(activeSimulations.get(routeId));
+    activeSimulations.delete(routeId);
     return true;
   }
-  return false;
+  return true; // Marked cancelled
 };
 
 // Example usage if ran directly: node src/scripts/simulateBus.js <routeId> <startLat> <startLng> <endLat> <endLng>

@@ -44,6 +44,7 @@ router.put('/notification-settings', auth(), updateNotificationSettings);
 // Mobile app bus APIs (JWT + X-API-Key — tenant = req.apiUser)
 router.get('/buses/home', auth(), busController.getHomeContent);
 router.get('/buses/cities', auth(), busController.searchCities);
+router.get('/buses/places', auth(), busController.searchPlaces);
 router.get('/buses/routes', auth(), busController.listRoutes);
 router.get('/buses/routes/:routeId/seats', auth(), busController.getRouteSeats);
 router.get('/buses/routes/:routeId/details', auth(), busController.getTripDetails);
@@ -51,7 +52,10 @@ router.post('/buses/search', auth(), busController.searchBuses);
 router.post('/buses/book', auth(), busController.bookBus);
 router.post('/buses/apply-coupon', auth(), busController.applyCoupon);
 
-// Help & Support inquiries (JWT + X-API-Key)
+const paymentController = require('@controllers/paymentController');
+router.post('/payments/create-intent', auth(), paymentController.createPaymentIntent);
+router.post('/payments/verify', auth(), paymentController.verifyPayment);
+
 const inquiryController = require('@controllers/inquiryController');
 router.post('/inquiries', auth(), inquiryController.createInquiry);
 router.get('/inquiries', auth(), inquiryController.listMyInquiries);

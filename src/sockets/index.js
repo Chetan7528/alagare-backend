@@ -14,14 +14,43 @@ const initSockets = (server) => {
     console.log(`Socket connected: ${socket.id}`);
 
     // Driver or User joins a specific route room
-    socket.on('join_route', (routeId) => {
+    socket.on('join_route', async (routeId) => {
+      if (!routeId) return;
       socket.join(routeId);
-      console.log(`Socket ${socket.id} joined route room: ${routeId}`);
+
+      try {
+        const { getLiveBusLocation } = require('../controllers/trackingController');
+        const cached = getLiveBusLocation(routeId);
+
+        if (cached && cached.location) {
+          socket.emit('bus_location_update', {
+            routeId,
+            location: cached.location,
+            speed: cached.speed,
+            status: cached.status,
+            lastPingAt: cached.lastPingAt,
+          });
+        } else {
+          // Fallback to database if no cache yet
+          const BusRoute = require('../models/BusRoute');
+          const route = await BusRoute.findOne({ routeId }).select('currentLocation currentSpeed trackingStatus lastPingAt');
+          if (route && route.currentLocation?.lat && route.currentLocation?.lng) {
+            socket.emit('bus_location_update', {
+              routeId,
+              location: route.currentLocation,
+              speed: route.currentSpeed || 0,
+              status: route.trackingStatus || 'scheduled',
+              lastPingAt: route.lastPingAt,
+            });
+          }
+        }
+      } catch (err) {
+        console.error(`[join_route initial sync error for ${routeId}]:`, err.message);
+      }
     });
 
     socket.on('leave_route', (routeId) => {
-      socket.leave(routeId);
-      console.log(`Socket ${socket.id} left route room: ${routeId}`);
+      if (routeId) socket.leave(routeId);
     });
 
     socket.on('disconnect', () => {

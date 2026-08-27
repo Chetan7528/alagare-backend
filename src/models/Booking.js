@@ -23,6 +23,9 @@ const bookingSchema = new mongoose.Schema(
       enum: ['pending', 'confirmed', 'cancelled'],
       default: 'pending',
     },
+    paymentMethod: { type: String, trim: true },
+    paymentIntentId: { type: String, trim: true },
+    paymentStatus: { type: String, default: 'pending', trim: true },
     api_user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ApiUser',

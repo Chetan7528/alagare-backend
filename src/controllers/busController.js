@@ -46,6 +46,57 @@ const toDisplayTimeAmPm = (val) => {
   return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
 };
 
+const parseDepartureDateTime = (dateStr, timeVal) => {
+  if (!dateStr) return null;
+  let tripDate;
+  const strDate = String(dateStr).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(strDate)) {
+    const [y, m, d] = strDate.split('T')[0].split('-').map(Number);
+    tripDate = new Date(y, m - 1, d);
+  } else if (/^\d{2}-\d{2}-\d{4}/.test(strDate)) {
+    const [d, m, y] = strDate.split('-').map(Number);
+    tripDate = new Date(y, m - 1, d);
+  } else {
+    tripDate = new Date(strDate);
+  }
+
+  if (Number.isNaN(tripDate.getTime())) return null;
+
+  let hours = 0;
+  let mins = 0;
+
+  if (timeVal) {
+    const timeStr = String(timeVal).trim();
+    if (timeStr.includes('T') || timeStr.endsWith('Z')) {
+      const d = new Date(timeStr);
+      if (!Number.isNaN(d.getTime())) {
+        hours = d.getHours();
+        mins = d.getMinutes();
+      }
+    } else {
+      const match = timeStr.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|am|pm)?$/i);
+      if (match) {
+        hours = parseInt(match[1], 10);
+        mins = parseInt(match[2], 10);
+        const modifier = match[3] ? match[3].toUpperCase() : null;
+        if (modifier === 'PM' && hours < 12) hours += 12;
+        if (modifier === 'AM' && hours === 12) hours = 0;
+      }
+    }
+  }
+
+  tripDate.setHours(hours, mins, 0, 0);
+  return tripDate;
+};
+
+const isTripDeparted = (dateStr, timeVal, bufferMinutes = 0) => {
+  const departureDate = parseDepartureDateTime(dateStr, timeVal);
+  if (!departureDate) return false;
+  const now = new Date();
+  const cutoffTime = new Date(departureDate.getTime() - bufferMinutes * 60 * 1000);
+  return now >= cutoffTime;
+};
+
 const toPublicRoute = (route, logo = '') => ({
   routeId: route.routeId,
   operator: route.operator,
@@ -162,6 +213,78 @@ module.exports = {
     }
   },
 
+  searchPlaces: async (req, res) => {
+    try {
+      const q = String(req.query.q || '').trim();
+      if (!q || q.length < 2) {
+        return response.ok(res, { places: [] });
+      }
+
+      const googleKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+      let googlePlaces = [];
+
+      if (googleKey) {
+        try {
+          const axios = require('axios');
+          const gRes = await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
+            params: {
+              input: q,
+              key: googleKey,
+            },
+            timeout: 8000,
+          });
+
+          if (gRes.data?.predictions && Array.isArray(gRes.data.predictions)) {
+            googlePlaces = gRes.data.predictions.map((p) => {
+              const mainText = p.structured_formatting?.main_text || (p.description || '').split(',')[0]?.trim();
+              const secondaryText = p.structured_formatting?.secondary_text || '';
+              return {
+                id: p.place_id,
+                name: mainText,
+                city: mainText,
+                parentCity: secondaryText,
+                label: p.description,
+                type: 'google',
+              };
+            });
+          }
+        } catch (err) {
+          console.error('Google Places Search API Error:', err?.message);
+        }
+      }
+
+      // Also search database saved cities
+      const dbCities = await City.find({
+        ...tenantFilter(req),
+        status: 'active',
+        name: { $regex: q, $options: 'i' },
+      }).limit(8);
+
+      const dbPlaces = dbCities.map((c) => ({
+        id: c._id.toString(),
+        name: c.name,
+        city: c.name,
+        parentCity: c.parentCity || '',
+        label: c.name + (c.country ? `, ${c.country}` : ''),
+        type: 'saved',
+      }));
+
+      // Merge and deduplicate
+      const seen = new Set();
+      const merged = [];
+      for (const p of [...dbPlaces, ...googlePlaces]) {
+        const key = (p.label || p.name || '').toLowerCase().trim();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        merged.push(p);
+      }
+
+      return response.ok(res, { places: merged });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
   listRoutes: async (req, res) => {
     try {
       const routes = await BusRoute.find({
@@ -199,43 +322,20 @@ module.exports = {
         }
       });
 
-      const searchDateObj = new Date(date);
-      searchDateObj.setHours(0, 0, 0, 0);
-      const todayObj = new Date();
-      todayObj.setHours(0, 0, 0, 0);
-
       let validRoutes = allRoutes
         .filter((r) => r.from.toLowerCase().includes(fromNorm) || fromNorm.includes(r.from.toLowerCase()))
         .filter((r) => r.to.toLowerCase().includes(toNorm) || toNorm.includes(r.to.toLowerCase()));
 
-      if (searchDateObj < todayObj) {
-        validRoutes = []; // Past dates are invalid
-      } else if (searchDateObj.getTime() === todayObj.getTime()) {
-        const now = new Date();
-        validRoutes = validRoutes.filter(r => {
-          let departureTimeStr = r.departure;
-          if (r.stops && r.stops.length > 0) {
-            const matchedStop = r.stops.find(s => s.stopName && (s.stopName.toLowerCase().includes(fromNorm) || fromNorm.includes(s.stopName.toLowerCase())));
-            if (matchedStop && matchedStop.eta) departureTimeStr = matchedStop.eta;
-          }
-          
-          if (!departureTimeStr) return true;
-          
-          const match = departureTimeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?$/);
-          if (match) {
-            let hours = parseInt(match[1], 10);
-            const mins = parseInt(match[2], 10);
-            const modifier = match[3] ? match[3].toUpperCase() : null;
-            if (modifier === 'PM' && hours < 12) hours += 12;
-            if (modifier === 'AM' && hours === 12) hours = 0;
-            
-            const depTime = new Date();
-            depTime.setHours(hours, mins, 0, 0);
-            return depTime > now;
-          }
-          return true;
-        });
-      }
+      validRoutes = validRoutes.filter((r) => {
+        let departureTimeStr = r.departure;
+        if (r.stops && r.stops.length > 0) {
+          const matchedStop = r.stops.find(
+            (s) => s.stopName && (s.stopName.toLowerCase().includes(fromNorm) || fromNorm.includes(s.stopName.toLowerCase()))
+          );
+          if (matchedStop && matchedStop.eta) departureTimeStr = matchedStop.eta;
+        }
+        return !isTripDeparted(date, departureTimeStr, 0);
+      });
 
       const activeBookings = await Booking.find({
         ...tenantFilter(req),
@@ -370,6 +470,8 @@ module.exports = {
         passengerName,
         phone,
         paymentMethod,
+        paymentIntentId,
+        paymentStatus,
         date,
         discountAmount = 0,
         amount,
@@ -393,6 +495,12 @@ module.exports = {
       });
       if (!route) {
         return response.notFound(res, { message: 'Route not found' });
+      }
+
+      if (date && isTripDeparted(date, departure || route.departure, 0)) {
+        return response.badReq(res, {
+          message: 'This bus has already departed for the selected date and time. Please choose an upcoming trip.',
+        });
       }
 
       const seatList = Array.isArray(seats) ? seats.map(String) : [];
@@ -457,6 +565,9 @@ module.exports = {
         seatKeys: seatList,
         amount: finalAmount,
         status: 'confirmed',
+        paymentMethod: paymentMethod || 'stripe',
+        paymentIntentId: paymentIntentId || '',
+        paymentStatus: paymentStatus || 'paid',
         api_user: req.apiUser._id,
       });
 

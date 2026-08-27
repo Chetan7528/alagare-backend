@@ -362,22 +362,24 @@ module.exports = {
       if (!user) return response.notFound(res, { message: 'User not found' });
       const Booking = require('../models/Booking');
       const userEmail = (user.email || '').trim();
-      const userBookings = await Booking.find({
-        email: { $regex: new RegExp('^' + userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') },
-      });
+      const userPhone = (user.phone || '').trim();
+      const matchQueries = [];
+      if (userEmail) matchQueries.push({ email: { $regex: new RegExp('^' + userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } });
+      if (userPhone) matchQueries.push({ phone: userPhone });
+      const userBookings = await Booking.find(matchQueries.length > 0 ? { $or: matchQueries } : { email: userEmail });
       const confirmedCount = userBookings.filter((b) => b.status === 'confirmed').length;
       const totalTrips = userBookings.length;
       const totalSpent = userBookings.reduce((sum, b) => sum + (b.amount || 0), 0);
       const totalPoints = (confirmedCount > 0 ? confirmedCount : totalTrips) * 150 + Math.round(totalSpent * 2);
 
-      const TIER_RANK = { Standard: 0, Silver: 1, Gold: 2, Platinum: 3 };
+      const TIER_RANK = { standard: 0, silver: 1, gold: 2, platinum: 3 };
       let tripTier = 'Standard';
       if (totalTrips >= 5) tripTier = 'Platinum';
       else if (totalTrips >= 2) tripTier = 'Gold';
 
       const storedMember = user.membership || 'Standard';
       const computedMember =
-        TIER_RANK[tripTier] > (TIER_RANK[storedMember] ?? 0) ? tripTier : storedMember;
+        TIER_RANK[tripTier.toLowerCase()] > (TIER_RANK[storedMember.toLowerCase()] ?? 0) ? tripTier : storedMember;
 
       const userData = user.toObject();
       userData.trips = totalTrips;

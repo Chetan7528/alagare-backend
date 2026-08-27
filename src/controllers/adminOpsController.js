@@ -194,30 +194,39 @@ module.exports = {
 
   listUsers: async (req, res) => {
     try {
+      const TIER_RANK = { standard: 0, silver: 1, gold: 2, platinum: 3 };
       const users = await User.find({ ...tenantFilter(req), isDeleted: { $ne: true }, role: { $ne: 'admin' } }).select('-password').sort({ createdAt: -1 });
       const bookings = await Booking.find(tenantFilter(req));
       
       const statsMap = {};
       bookings.forEach(b => {
         const email = (b.email || '').toLowerCase().trim();
-        if (!statsMap[email]) statsMap[email] = { totalTrips: 0, confirmedCount: 0, totalSpent: 0 };
-        statsMap[email].totalTrips += 1;
-        if (b.status === 'confirmed') statsMap[email].confirmedCount += 1;
-        statsMap[email].totalSpent += (b.amount || 0);
+        const phone = (b.phone || '').trim();
+        
+        const registerStat = (key) => {
+          if (!key) return;
+          if (!statsMap[key]) statsMap[key] = { totalTrips: 0, confirmedCount: 0, totalSpent: 0 };
+          statsMap[key].totalTrips += 1;
+          if (b.status === 'confirmed') statsMap[key].confirmedCount += 1;
+          statsMap[key].totalSpent += (b.amount || 0);
+        };
+
+        if (email) registerStat(email);
+        if (phone) registerStat(phone);
       });
 
       const formatted = users.map((u) => {
         const email = (u.email || '').toLowerCase().trim();
-        const stats = statsMap[email] || { totalTrips: 0, confirmedCount: 0, totalSpent: 0 };
+        const phone = (u.phone || '').trim();
+        const stats = statsMap[email] || (phone ? statsMap[phone] : null) || { totalTrips: 0, confirmedCount: 0, totalSpent: 0 };
         const totalPoints = (stats.confirmedCount > 0 ? stats.confirmedCount : stats.totalTrips) * 150 + Math.round(stats.totalSpent * 2);
 
-        let member = u.membership;
-        if (!member || member === 'Standard') {
-           if (stats.totalTrips >= 5) member = 'Platinum';
-           else if (stats.totalTrips >= 2) member = 'Gold';
-           else member = 'Standard';
-        }
-        if (u.role === 'operator') member = 'Gold';
+        let tripTier = 'Standard';
+        if (stats.totalTrips >= 5) tripTier = 'Platinum';
+        else if (stats.totalTrips >= 2) tripTier = 'Gold';
+
+        const storedMember = u.membership || 'Standard';
+        const member = TIER_RANK[tripTier.toLowerCase()] > (TIER_RANK[storedMember.toLowerCase()] ?? 0) ? tripTier : storedMember;
 
         return {
           id: u._id,

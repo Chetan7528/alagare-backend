@@ -71,6 +71,9 @@ router.get('/bookings', auth('admin'), listBookings);
 router.put('/bookings/:id/status', auth('admin'), updateBookingStatus);
 
 router.get('/cities', auth('admin'), listCities);
+router.get('/places', auth('admin'), require('@controllers/busController').searchPlaces);
+router.post('/buses/tracking/simulate', auth('admin'), require('@controllers/trackingController').startSimulation);
+router.post('/buses/tracking/stop-simulate', auth('admin'), require('@controllers/trackingController').stopSimulation);
 router.post('/cities', auth('admin'), createCity);
 router.put('/cities/:id', auth('admin'), updateCity);
 router.delete('/cities/:id', auth('admin'), deleteCity);

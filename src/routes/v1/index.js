@@ -40,4 +40,8 @@ router.post('/buses/tracking/location', updateLocation);
 router.post('/buses/tracking/simulate', startSimulation);
 router.post('/buses/tracking/stop-simulate', stopSimulation);
 
+const { createPaymentIntent, verifyPayment } = require('@controllers/paymentController');
+router.post('/payments/create-intent', createPaymentIntent);
+router.post('/payments/verify', verifyPayment);
+
 module.exports = router;

@@ -1,10 +1,9 @@
 'use strict';
 const ApiUser = require('@models/ApiUser');
-const { DEFAULT_GOOGLE_MAPS_KEY } = require('@lib/clientKeys');
-
 const DEFAULT_APP_NAME = 'alagare-mobile';
 
 async function seedDefaultApiUser() {
+  const envKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || '';
   let apiUser = await ApiUser.findOne({ email: 'mobile@alagare.com' });
 
   if (!apiUser) {
@@ -18,7 +17,7 @@ async function seedDefaultApiUser() {
       app_name: DEFAULT_APP_NAME,
       expiry_date: expiry,
       is_active: true,
-      client_keys: { googleMaps: DEFAULT_GOOGLE_MAPS_KEY },
+      client_keys: { googleMaps: envKey },
     });
     await apiUser.save();
     apiUser.api_key = apiUser.generateApiKey();
@@ -53,7 +52,7 @@ async function seedDefaultApiUser() {
     if (!apiUser.client_keys?.googleMaps) {
       apiUser.client_keys = {
         ...(apiUser.client_keys?.toObject?.() || apiUser.client_keys || {}),
-        googleMaps: DEFAULT_GOOGLE_MAPS_KEY,
+        googleMaps: envKey,
       };
       dirty = true;
     }
