@@ -149,7 +149,7 @@ const buildPdf = (data) =>
     doc.rect(cardX, footerY, cardW, footerH).fill(PRIMARY);
     doc.restore();
     doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(11)
-       .text('TransiHub by Alagare  —  Official Booking Invoice',
+       .text('Alagare  —  Official Booking Invoice',
          cardX, footerY + 14, { width: cardW, align: 'center' });
 
     doc.end();
@@ -185,7 +185,7 @@ const generateInvoice = async (req, res) => {
 
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="TransiHub_Invoice_${booking.ref}.pdf"`,
+      'Content-Disposition': `attachment; filename="Alagare_Invoice_${booking.ref}.pdf"`,
       'Content-Length': pdfBuffer.length,
     });
     res.status(200).end(pdfBuffer);

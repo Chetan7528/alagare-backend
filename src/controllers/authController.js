@@ -36,13 +36,15 @@ module.exports = {
       }
 
       const userPayload = {
-        fullname,
-        phone,
+        fullname: fullname.trim(),
+        phone: String(phone).trim(),
         role: role === 'admin' ? 'admin' : 'user',
         isVerified: false,
         api_user: req.apiUser?._id,
       };
-      if (email) userPayload.email = email;
+      if (email && typeof email === 'string' && email.trim().length > 0) {
+        userPayload.email = email.toLowerCase().trim();
+      }
       if (hashed) userPayload.password = hashed;
       if (gender) userPayload.gender = gender;
 
@@ -67,6 +69,15 @@ module.exports = {
         phone,
       });
     } catch (error) {
+      if (error.code === 11000) {
+        const field = error.keyPattern ? Object.keys(error.keyPattern)[0] : '';
+        const msg = field === 'phone'
+          ? 'An account with this phone number already exists. Please sign in.'
+          : field === 'email'
+          ? 'An account with this email address already exists.'
+          : 'An account with these details already exists. Please sign in.';
+        return response.badReq(res, { message: msg });
+      }
       return response.error(res, error);
     }
   },

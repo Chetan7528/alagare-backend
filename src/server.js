@@ -2,6 +2,14 @@ require('module-alias/register');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
+const dns = require('dns');
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+try {
+  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (e) {}
+
 const http = require('http');
 const app = require('./app');
 const { initSockets } = require('./sockets');

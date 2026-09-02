@@ -1,6 +1,6 @@
 'use strict';
 
-const TERMS_BODY = `<p>Welcome to <strong>Alagare (TransiHub)</strong>. By creating an account or booking a bus ticket through our mobile app, you agree to these Terms of Service.</p>
+const TERMS_BODY = `<p>Welcome to <strong>Alagare (Alagare)</strong>. By creating an account or booking a bus ticket through our mobile app, you agree to these Terms of Service.</p>
 <h3>1. About our service</h3>
 <p>Alagare is a bus booking platform that lets you search routes, compare operators, select seats, and book intercity and local bus travel. We connect you with transport operators on the Alagare network.</p>
 <h3>2. Account registration</h3>
@@ -19,7 +19,7 @@ const TERMS_BODY = `<p>Welcome to <strong>Alagare (TransiHub)</strong>. By creat
 <p>For booking help or disputes, use Help &amp; Support in the Alagare app or contact <strong>support@alagare.com</strong>.</p>
 <p><em>Last updated: July 2026</em></p>`;
 
-const PRIVACY_BODY = `<p><strong>Alagare (TransiHub)</strong> respects your privacy. This Privacy Policy explains what we collect, how we use it, and your choices when you use our bus booking app.</p>
+const PRIVACY_BODY = `<p><strong>Alagare (Alagare)</strong> respects your privacy. This Privacy Policy explains what we collect, how we use it, and your choices when you use our bus booking app.</p>
 <h3>1. Information we collect</h3>
 <ul>
 <li>Account details: name, email, phone number, and profile photo (if you upload one).</li>
@@ -45,7 +45,7 @@ const PRIVACY_BODY = `<p><strong>Alagare (TransiHub)</strong> respects your priv
 <p>Privacy questions: <strong>privacy@alagare.com</strong> or Help &amp; Support in the Alagare app.</p>
 <p><em>Last updated: July 2026</em></p>`;
 
-const OPERATOR_TERMS_BODY = `<p>Welcome to <strong>Alagare (TransiHub) Operator Portal</strong>. By registering as a bus operator or managing routes on our platform, you agree to these Terms of Service.</p>
+const OPERATOR_TERMS_BODY = `<p>Welcome to <strong>Alagare (Alagare) Operator Portal</strong>. By registering as a bus operator or managing routes on our platform, you agree to these Terms of Service.</p>
 <h3>1. Operator Registration & Approval</h3>
 <p>All bus operators must submit valid company registration, operating permits, vehicle insurance, and bank details. Alagare reserves the right to approve, reject, or suspend any operator application following compliance verification.</p>
 <h3>2. Fleet, Schedules & Seat Management</h3>
@@ -60,7 +60,7 @@ const OPERATOR_TERMS_BODY = `<p>Welcome to <strong>Alagare (TransiHub) Operator 
 <p>Either party may terminate the partnership upon written notice. Open bookings must be honored prior to account closure.</p>
 <p><em>Last updated: July 2026</em></p>`;
 
-const OPERATOR_PRIVACY_BODY = `<p><strong>Alagare (TransiHub)</strong> respects the privacy of our partner bus operators. This Privacy Policy explains what information we collect, how we use it, and your choices when you interact with our platform.</p>
+const OPERATOR_PRIVACY_BODY = `<p><strong>Alagare (Alagare)</strong> respects the privacy of our partner bus operators. This Privacy Policy explains what information we collect, how we use it, and your choices when you interact with our platform.</p>
 <h3>1. Information We Collect</h3>
 <ul>
   <li><strong>Account & Business Information:</strong> Operator name, company registration, contact person details, email address, phone number, and banking details for payout settlement.</li>
