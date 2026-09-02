@@ -46,47 +46,60 @@ const toDisplayTimeAmPm = (val) => {
   return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
 };
 
-const parseDepartureDateTime = (dateStr, timeVal) => {
-  if (!dateStr) return null;
-  let tripDate;
-  const strDate = String(dateStr).trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(strDate)) {
-    const [y, m, d] = strDate.split('T')[0].split('-').map(Number);
-    tripDate = new Date(y, m - 1, d);
-  } else if (/^\d{2}-\d{2}-\d{4}/.test(strDate)) {
-    const [d, m, y] = strDate.split('-').map(Number);
-    tripDate = new Date(y, m - 1, d);
-  } else {
-    tripDate = new Date(strDate);
-  }
-
-  if (Number.isNaN(tripDate.getTime())) return null;
-
-  let hours = 0;
-  let mins = 0;
-
-  if (timeVal) {
-    const timeStr = String(timeVal).trim();
-    if (timeStr.includes('T') || timeStr.endsWith('Z')) {
-      const d = new Date(timeStr);
-      if (!Number.isNaN(d.getTime())) {
-        hours = d.getHours();
-        mins = d.getMinutes();
-      }
-    } else {
-      const match = timeStr.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|am|pm)?$/i);
-      if (match) {
-        hours = parseInt(match[1], 10);
-        mins = parseInt(match[2], 10);
-        const modifier = match[3] ? match[3].toUpperCase() : null;
-        if (modifier === 'PM' && hours < 12) hours += 12;
-        if (modifier === 'AM' && hours === 12) hours = 0;
-      }
+const extractTimeComponents = (timeVal) => {
+  if (!timeVal) return { hours: 0, mins: 0 };
+  const str = String(timeVal).trim();
+  
+  if (str.includes('T')) {
+    const timePart = str.split('T')[1];
+    const match = timePart.match(/^(\d{1,2}):(\d{2})/);
+    if (match) {
+      return { hours: parseInt(match[1], 10), mins: parseInt(match[2], 10) };
     }
   }
 
-  tripDate.setHours(hours, mins, 0, 0);
-  return tripDate;
+  const match = str.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|am|pm)?$/i);
+  if (match) {
+    let hours = parseInt(match[1], 10);
+    const mins = parseInt(match[2], 10);
+    const modifier = match[3] ? match[3].toUpperCase() : null;
+    if (modifier === 'PM' && hours < 12) hours += 12;
+    if (modifier === 'AM' && hours === 12) hours = 0;
+    return { hours, mins };
+  }
+
+  const d = new Date(str);
+  if (!Number.isNaN(d.getTime())) {
+    return { hours: d.getHours(), mins: d.getMinutes() };
+  }
+
+  return { hours: 0, mins: 0 };
+};
+
+const parseDepartureDateTime = (dateStr, timeVal) => {
+  if (!dateStr) return null;
+  const strDate = String(dateStr).trim();
+  let y, m, d;
+  if (/^\d{4}-\d{2}-\d{2}/.test(strDate)) {
+    const parts = strDate.split('T')[0].split('-').map(Number);
+    y = parts[0];
+    m = parts[1] - 1;
+    d = parts[2];
+  } else if (/^\d{2}-\d{2}-\d{4}/.test(strDate)) {
+    const parts = strDate.split('-').map(Number);
+    y = parts[2];
+    m = parts[1] - 1;
+    d = parts[0];
+  } else {
+    const parsed = new Date(strDate);
+    if (Number.isNaN(parsed.getTime())) return null;
+    y = parsed.getFullYear();
+    m = parsed.getMonth();
+    d = parsed.getDate();
+  }
+
+  const { hours, mins } = extractTimeComponents(timeVal);
+  return new Date(y, m, d, hours, mins, 0, 0);
 };
 
 const isTripDeparted = (dateStr, timeVal, bufferMinutes = 0) => {
