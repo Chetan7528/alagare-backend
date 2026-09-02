@@ -778,4 +778,5 @@ module.exports = {
       return response.error(res, error);
     }
   },
+  isTripDeparted,
 };

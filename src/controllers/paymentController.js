@@ -22,6 +22,19 @@ const createPaymentIntent = async (req, res) => {
       return response.badReq(res, { message: 'Valid amount is required' });
     }
 
+    if (bookingDetails.routeId && bookingDetails.date) {
+      const BusRoute = require('@models/BusRoute');
+      const route = await BusRoute.findOne({ routeId: bookingDetails.routeId, status: 'active' });
+      if (route) {
+        const { isTripDeparted } = require('./busController');
+        if (typeof isTripDeparted === 'function' && isTripDeparted(bookingDetails.date, route.departure, 0)) {
+          return response.badReq(res, {
+            message: 'This bus has already departed. Cannot initiate payment for past trips.',
+          });
+        }
+      }
+    }
+
     const amountInSmallestUnit = Math.round(numAmount * 100);
 
     const paymentIntent = await stripe.paymentIntents.create({
