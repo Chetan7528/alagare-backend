@@ -495,9 +495,10 @@ module.exports = {
         busType,
       } = req.body;
 
-      if (!routeId || !passengers || !contactEmail) {
+      const finalContactEmail = contactEmail || req.user?.email || (phone || req.user?.phone ? `${phone || req.user?.phone}@alagare.com` : 'passenger@alagare.com');
+      if (!routeId || !passengers || !finalContactEmail) {
         return response.badReq(res, {
-          message: 'routeId, passengers and contactEmail are required',
+          message: 'routeId, passengers and contact details are required',
         });
       }
 
@@ -563,8 +564,8 @@ module.exports = {
 
       const booking = await Booking.create({
         ref: bookingRef,
-        passenger: passengerName || contactEmail.split('@')[0],
-        email: contactEmail,
+        passenger: passengerName || (finalContactEmail.includes('@alagare.com') ? (phone || 'Passenger') : finalContactEmail.split('@')[0]),
+        email: finalContactEmail,
         route: `${route.from} → ${route.to}`,
         routeId: route.routeId,
         operator: route.operator,
