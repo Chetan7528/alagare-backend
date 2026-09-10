@@ -41,6 +41,7 @@ const {
   listUsers,
   updateUser,
   deleteUser,
+  getCommissionReport,
 } = require('@controllers/adminOpsController');
 
 const {
@@ -69,6 +70,7 @@ router.delete('/operators/:id', auth('admin'), deleteOperator);
 
 router.get('/bookings', auth('admin'), listBookings);
 router.put('/bookings/:id/status', auth('admin'), updateBookingStatus);
+router.get('/commission', auth('admin'), getCommissionReport);
 
 router.get('/cities', auth('admin'), listCities);
 router.get('/places', auth('admin'), require('@controllers/busController').searchPlaces);

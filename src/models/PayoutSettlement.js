@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const payoutSettlementSchema = new mongoose.Schema(
   {
     settlementId: { type: String, required: true, unique: true, trim: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     operator: { type: String, required: true, trim: true },
     requestedAmount: { type: Number, required: true, min: 0 },
     commissionDeducted: { type: Number, default: 0, min: 0 },

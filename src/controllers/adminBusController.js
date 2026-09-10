@@ -4,6 +4,7 @@ const BusType = require('@models/BusType');
 const HomeContent = require('@models/HomeContent');
 const response = require('@responses');
 const { fileUrl } = require('@services/fileUpload');
+const { notifyAllUsers } = require('@services/notification');
 
 const tenantFilter = (req) => ({ api_user: req.apiUser._id });
 
@@ -176,6 +177,12 @@ module.exports = {
         api_user: req.apiUser._id,
       });
 
+      if (route.status === 'active') {
+        const notifTitle = `New Route: ${route.from} → ${route.to}`;
+        const notifContent = `New trips available from ${route.from} to ${route.to} with ${route.operator} starting at €${route.price}!`;
+        await notifyAllUsers('newRoutes', notifTitle, notifContent, route._id).catch(() => {});
+      }
+
       return response.created(res, { message: 'Route created', route: toAdminRoute(route) });
     } catch (error) {
       return response.error(res, error);
@@ -275,6 +282,12 @@ module.exports = {
         home = await HomeContent.create({ ...update, api_user: req.apiUser._id });
       } else {
         home = await HomeContent.findByIdAndUpdate(home._id, update, { new: true });
+      }
+
+      if (promoCode || promoTitle) {
+        const notifTitle = promoTitle ? `Exclusive Offer: ${promoTitle}` : 'Special Discount Available!';
+        const notifContent = promoDesc || (promoCode ? `Use promo code ${promoCode} at checkout to save on your journey!` : 'Check out our latest promotional offers in the app.');
+        await notifyAllUsers('promoOffers', notifTitle, notifContent).catch(() => {});
       }
 
       return response.ok(res, { message: 'Home content updated', home });

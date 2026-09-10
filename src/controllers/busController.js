@@ -5,10 +5,65 @@ const HomeContent = require('@models/HomeContent');
 const Booking = require('@models/Booking');
 const City = require('@models/City');
 const Operator = require('@models/Operator');
+const PlatformSettings = require('@models/PlatformSettings');
 const response = require('@responses');
 const { notifyUser } = require('@services/notification');
 
 const tenantFilter = (req) => ({ api_user: req.apiUser._id });
+
+const getEffectivePlatformPricing = async (req, operatorName) => {
+  let commissionRate = 5;
+  let taxRate = 0;
+  let serviceFee = 0;
+  try {
+    const settings = await PlatformSettings.findOne(tenantFilter(req));
+    if (settings) {
+      if (settings.commissionRate != null) commissionRate = Number(settings.commissionRate);
+      if (settings.taxRate != null) taxRate = Number(settings.taxRate);
+      if (settings.serviceFee != null) serviceFee = Number(settings.serviceFee);
+    }
+    if (operatorName) {
+      const op = await Operator.findOne({
+        name: new RegExp(`^${String(operatorName).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        ...tenantFilter(req),
+      });
+      if (op && op.commissionRate != null) {
+        commissionRate = Number(op.commissionRate);
+      }
+    }
+  } catch (err) {}
+  return {
+    commissionRate: Math.max(0, commissionRate),
+    taxRate: Math.max(0, taxRate),
+    serviceFee: Math.max(0, serviceFee),
+  };
+};
+
+const getEffectiveCommissionRate = async (req, operatorName) => {
+  const p = await getEffectivePlatformPricing(req, operatorName);
+  return p.commissionRate;
+};
+
+const userBookingFilter = (req) => {
+  const userConditions = [];
+  if (req.user?._id) {
+    userConditions.push({ user: req.user._id });
+  }
+  if (req.user?.email) {
+    userConditions.push({ email: req.user.email.toLowerCase().trim() });
+  }
+  if (req.user?.phone) {
+    userConditions.push({ phone: req.user.phone.trim() });
+    userConditions.push({ email: `${req.user.phone.trim()}@alagare.com` });
+  }
+  if (req.user?.fullname) {
+    userConditions.push({ passenger: req.user.fullname.trim() });
+  }
+  return {
+    api_user: req.apiUser._id,
+    ...(userConditions.length > 0 ? { $or: userConditions } : { email: req.user?.email || '__no_user__' }),
+  };
+};
 
 const resolveSeatLayout = async (req, route) => {
   const type = await BusType.findOne({
@@ -110,53 +165,82 @@ const isTripDeparted = (dateStr, timeVal, bufferMinutes = 0) => {
   return now >= cutoffTime;
 };
 
-const toPublicRoute = (route, logo = '') => ({
-  routeId: route.routeId,
-  operator: route.operator,
-  logo: logo || route.logo || route.operatorLogo || '',
-  operatorLogo: logo || route.logo || route.operatorLogo || '',
-  from: route.from,
-  to: route.to,
-  departure: toDisplayTime(route.departure),
-  arrival: toDisplayTime(route.arrival),
-  departureAt: route.departure,
-  arrivalAt: route.arrival,
-  duration: route.duration,
-  price: route.price,
-  currency: route.currency,
-  seatsAvailable: route.seatsAvailable,
-  busType: route.busType,
-  isExpress: route.isExpress !== false,
-});
+const toPublicRoute = (route, logo = '', commissionRate = 5) => {
+  const operatorPrice = Number(route.price) || 0;
+  const commissionPerSeat = Math.round((operatorPrice * (commissionRate / 100)) * 100) / 100;
+  const customerPrice = operatorPrice + commissionPerSeat;
 
-const toPopularRoute = (route) => ({
-  routeId: route.routeId,
-  from: route.from,
-  to: route.to,
-  operator: route.operator,
-  fromPrice: route.price,
-  currency: route.currency,
-});
-
-const priceBreakdown = (route, seatCount = 1) => {
-  const baseFare = Number(route.price) * seatCount;
-  const taxRate = route.taxRate != null ? Number(route.taxRate) : 0.086;
-  const serviceFee = route.serviceFee != null ? Number(route.serviceFee) : 4.5;
-  const taxes = Math.round(baseFare * taxRate * 100) / 100;
-  const total = Math.round((baseFare + taxes + serviceFee) * 100) / 100;
   return {
+    routeId: route.routeId,
+    operator: route.operator,
+    logo: logo || route.logo || route.operatorLogo || '',
+    operatorLogo: logo || route.logo || route.operatorLogo || '',
+    from: route.from,
+    to: route.to,
+    departure: toDisplayTime(route.departure),
+    arrival: toDisplayTime(route.arrival),
+    departureAt: route.departure,
+    arrivalAt: route.arrival,
+    duration: route.duration,
+    price: customerPrice,
+    operatorBasePrice: operatorPrice,
+    commissionRate,
+    commissionAmount: commissionPerSeat,
+    currency: route.currency,
+    seatsAvailable: route.seatsAvailable,
+    busType: route.busType,
+    isExpress: route.isExpress !== false,
+  };
+};
+
+const toPopularRoute = (route, commissionRate = 5) => {
+  const operatorPrice = Number(route.price) || 0;
+  const commissionPerSeat = Math.round((operatorPrice * (commissionRate / 100)) * 100) / 100;
+  return {
+    routeId: route.routeId,
+    from: route.from,
+    to: route.to,
+    operator: route.operator,
+    fromPrice: operatorPrice + commissionPerSeat,
+    operatorBasePrice: operatorPrice,
+    commissionRate,
+    currency: route.currency,
+  };
+};
+
+const priceBreakdown = (route, seatCount = 1, commissionRate = 5, taxRate = 0, serviceFee = 0) => {
+  const operatorPrice = Number(route.price) || 0;
+  const commissionPerSeat = Math.round((operatorPrice * (commissionRate / 100)) * 100) / 100;
+  const customerUnitPrice = operatorPrice + commissionPerSeat;
+
+  const operatorBaseFare = Math.round(operatorPrice * seatCount * 100) / 100;
+  const commissionAmount = Math.round(commissionPerSeat * seatCount * 100) / 100;
+  const baseFare = Math.round(customerUnitPrice * seatCount * 100) / 100;
+
+  const effectiveTaxRate = route.taxRate != null ? Number(route.taxRate) : Number(taxRate || 0);
+  const effectiveServiceFee = route.serviceFee != null ? Number(route.serviceFee) : Number(serviceFee || 0);
+  const taxes = Math.round(baseFare * (effectiveTaxRate / 100) * 100) / 100;
+  const total = Math.round((baseFare + taxes + effectiveServiceFee) * 100) / 100;
+
+  return {
+    operatorPrice,
+    commissionRate,
+    commissionPerSeat,
+    customerUnitPrice,
+    operatorBaseFare,
+    commissionAmount,
     baseFare,
     taxes,
-    serviceFee,
-    taxRate,
+    serviceFee: effectiveServiceFee,
+    taxRate: effectiveTaxRate,
     seatCount,
     total,
     currency: route.currency || 'EUR',
   };
 };
 
-const toTripDetails = (route, operatorDoc) => ({
-  ...toPublicRoute(route, operatorDoc?.logo || ''),
+const toTripDetails = (route, operatorDoc, commissionRate = 5, seatCount = 1, taxRate = 0, serviceFee = 0) => ({
+  ...toPublicRoute(route, operatorDoc?.logo || '', commissionRate),
   departureDisplay: toDisplayTimeAmPm(route.departure),
   arrivalDisplay: toDisplayTimeAmPm(route.arrival),
   departureStation: route.departureStation || `${route.from} Coach Station`,
@@ -181,7 +265,7 @@ const toTripDetails = (route, operatorDoc) => ({
     'Includes 1 hand luggage (max 7kg) and 1 check-in bag (max 20kg). Excess baggage fee applies at gate.',
   benefitNote:
     route.benefitNote || 'Standard Premier includes meal and lounge access.',
-  pricing: priceBreakdown(route, 1),
+  pricing: priceBreakdown(route, seatCount, commissionRate, taxRate, serviceFee),
   operatorInfo: operatorDoc
     ? {
         name: operatorDoc.name,
@@ -300,6 +384,7 @@ module.exports = {
 
   listRoutes: async (req, res) => {
     try {
+      const defaultCommission = await getEffectiveCommissionRate(req);
       const routes = await BusRoute.find({
         ...tenantFilter(req),
         status: 'active',
@@ -308,7 +393,7 @@ module.exports = {
 
       return response.ok(res, {
         api_user: req.apiUser.email,
-        routes: routes.map(toPopularRoute),
+        routes: routes.map((r) => toPopularRoute(r, defaultCommission)),
       });
     } catch (error) {
       return response.error(res, error);
@@ -328,10 +413,16 @@ module.exports = {
 
       const allRoutes = await BusRoute.find({ ...tenantFilter(req), status: 'active' });
       const operators = await Operator.find(tenantFilter(req));
+      const defaultCommission = await getEffectiveCommissionRate(req);
+
       const logoMap = new Map();
+      const opCommissionMap = new Map();
       operators.forEach((o) => {
         if (o.name && o.logo) {
           logoMap.set(o.name.trim().toLowerCase(), o.logo);
+        }
+        if (o.name && o.commissionRate != null) {
+          opCommissionMap.set(o.name.trim().toLowerCase(), Number(o.commissionRate));
         }
       });
 
@@ -368,7 +459,8 @@ module.exports = {
         const matchedLogo = logoMap.get((r.operator || '').trim().toLowerCase()) || '';
         const occupiedCount = routeOccupiedMap[r.routeId] || 0;
         const dynamicSeatsAvailable = Math.max(0, r.seats - occupiedCount);
-        const routeData = toPublicRoute(r, matchedLogo);
+        const commRate = opCommissionMap.get((r.operator || '').trim().toLowerCase()) ?? defaultCommission;
+        const routeData = toPublicRoute(r, matchedLogo, commRate);
         routeData.seatsAvailable = dynamicSeatsAvailable;
         return routeData;
       });
@@ -463,9 +555,16 @@ module.exports = {
         ...tenantFilter(req),
       });
 
+      const pricingSettings = await getEffectivePlatformPricing(req, route.operator);
       const seatCount = Math.max(1, Number(req.query.seats) || 1);
-      const details = toTripDetails(route, operatorDoc);
-      details.pricing = priceBreakdown(route, seatCount);
+      const details = toTripDetails(
+        route,
+        operatorDoc,
+        pricingSettings.commissionRate,
+        seatCount,
+        pricingSettings.taxRate,
+        pricingSettings.serviceFee,
+      );
 
       return response.ok(res, { trip: details });
     } catch (error) {
@@ -552,9 +651,16 @@ module.exports = {
         return response.badReq(res, { message: 'Not enough seats available' });
       }
 
+      const pricingSettings = await getEffectivePlatformPricing(req, route.operator);
       const bookingRef = `ALG-${Date.now().toString(36).toUpperCase()}`;
       const seatCount = seatList.length || Number(passengers) || 1;
-      const pricing = priceBreakdown(route, seatCount);
+      const pricing = priceBreakdown(
+        route,
+        seatCount,
+        pricingSettings.commissionRate,
+        pricingSettings.taxRate,
+        pricingSettings.serviceFee,
+      );
       let finalAmount = Number(amount) || pricing.total;
       if (discountAmount > 0 && !amount) {
         finalAmount = Math.max(0, Math.round((pricing.total - Number(discountAmount)) * 100) / 100);
@@ -564,8 +670,10 @@ module.exports = {
 
       const booking = await Booking.create({
         ref: bookingRef,
-        passenger: passengerName || (finalContactEmail.includes('@alagare.com') ? (phone || 'Passenger') : finalContactEmail.split('@')[0]),
+        user: req.user?._id,
+        passenger: passengerName || req.user?.fullname || (finalContactEmail.includes('@alagare.com') ? (phone || req.user?.phone || 'Passenger') : finalContactEmail.split('@')[0]),
         email: finalContactEmail,
+        phone: phone || req.user?.phone || '',
         route: `${route.from} → ${route.to}`,
         routeId: route.routeId,
         operator: route.operator,
@@ -577,6 +685,12 @@ module.exports = {
         busType: busType || route.busType || '',
         seats: seatCount,
         seatKeys: seatList,
+        operatorBaseFare: pricing.operatorBaseFare,
+        commissionRate: pricing.commissionRate,
+        commissionAmount: pricing.commissionAmount,
+        taxRate: pricing.taxRate,
+        taxAmount: pricing.taxes,
+        serviceFee: pricing.serviceFee,
         amount: finalAmount,
         status: 'confirmed',
         paymentMethod: paymentMethod || 'stripe',
@@ -616,10 +730,8 @@ module.exports = {
 
   myBookings: async (req, res) => {
     try {
-      const bookings = await Booking.find({
-        email: req.user.email,
-        api_user: req.apiUser._id,
-      }).sort({ createdAt: -1 });
+      const filter = userBookingFilter(req);
+      const bookings = await Booking.find(filter).sort({ createdAt: -1 });
 
       const parseRoute = (route) => {
         if (!route) return { from: '', to: '' };
@@ -658,10 +770,10 @@ module.exports = {
 
   bookingDetail: async (req, res) => {
     try {
+      const filter = userBookingFilter(req);
       const booking = await Booking.findOne({
         ref: req.params.bookingRef,
-        email: req.user.email,
-        api_user: req.apiUser._id,
+        ...filter,
       });
       if (!booking) {
         return response.notFound(res, { message: 'Booking not found' });
@@ -679,37 +791,80 @@ module.exports = {
         return response.badReq(res, { message: 'Promo code is required' });
       }
       const Campaign = require('@models/Campaign');
+      const HomeContent = require('@models/HomeContent');
+      const User = require('@models/User');
       const promoCode = String(code).trim().toUpperCase();
+      const amount = Number(totalAmount) || 0;
+
+      // 1. Check Operator / Admin Campaigns
       const campaign = await Campaign.findOne({
         code: promoCode,
         status: 'active',
         ...tenantFilter(req),
       });
 
-      if (!campaign) {
-        return response.badReq(res, { message: 'Invalid or expired promo code' });
+      if (campaign) {
+        if (campaign.routeId && campaign.routeId !== 'all' && campaign.routeId !== routeId) {
+          return response.badReq(res, { message: 'Promo code is not applicable for this route' });
+        }
+
+        let discount = Math.round(((amount * campaign.discountPercent) / 100) * 100) / 100;
+        if (campaign.maxDiscount > 0 && discount > campaign.maxDiscount) {
+          discount = campaign.maxDiscount;
+        }
+
+        const finalAmount = Math.max(0, Math.round((amount - discount) * 100) / 100);
+
+        return response.ok(res, {
+          message: 'Coupon applied successfully!',
+          code: campaign.code,
+          title: campaign.title,
+          discountPercent: campaign.discountPercent,
+          discount,
+          finalAmount,
+        });
       }
 
-      if (campaign.routeId && campaign.routeId !== 'all' && campaign.routeId !== routeId) {
-        return response.badReq(res, { message: 'Promo code is not applicable for this route' });
-      }
-
-      const amount = Number(totalAmount) || 0;
-      let discount = Math.round(((amount * campaign.discountPercent) / 100) * 100) / 100;
-      if (campaign.maxDiscount > 0 && discount > campaign.maxDiscount) {
-        discount = campaign.maxDiscount;
-      }
-
-      const finalAmount = Math.max(0, Math.round((amount - discount) * 100) / 100);
-
-      return response.ok(res, {
-        message: 'Coupon applied successfully!',
-        code: campaign.code,
-        title: campaign.title,
-        discountPercent: campaign.discountPercent,
-        discount,
-        finalAmount,
+      // 2. Check App Home Promo Banner Code
+      const home = await HomeContent.findOne({
+        ...tenantFilter(req),
       });
+      if (home && home.promoCode && home.promoCode.trim().toUpperCase() === promoCode) {
+        const discountPercent = 20;
+        const discount = Math.round(((amount * discountPercent) / 100) * 100) / 100;
+        const finalAmount = Math.max(0, Math.round((amount - discount) * 100) / 100);
+
+        return response.ok(res, {
+          message: 'Promo banner discount applied!',
+          code: promoCode,
+          title: home.promoTitle || 'Special Offer',
+          discountPercent,
+          discount,
+          finalAmount,
+        });
+      }
+
+      // 3. Check Friend Referral Code
+      const friend = await User.findOne({
+        referralCode: promoCode,
+      });
+      if (friend) {
+        const discountPercent = 15;
+        let discount = Math.round(((amount * discountPercent) / 100) * 100) / 100;
+        if (discount > 10) discount = 10;
+        const finalAmount = Math.max(0, Math.round((amount - discount) * 100) / 100);
+
+        return response.ok(res, {
+          message: `Referral discount from ${friend.fullname} applied!`,
+          code: promoCode,
+          title: `Referral Credit (${friend.fullname})`,
+          discountPercent,
+          discount,
+          finalAmount,
+        });
+      }
+
+      return response.badReq(res, { message: 'Invalid or expired promo code' });
     } catch (error) {
       return response.error(res, error);
     }
@@ -718,10 +873,10 @@ module.exports = {
   cancelBooking: async (req, res) => {
     try {
       const { bookingRef } = req.params;
+      const filter = userBookingFilter(req);
       const booking = await Booking.findOne({
         ref: bookingRef,
-        email: req.user.email,
-        api_user: req.apiUser._id,
+        ...filter,
       });
 
       if (!booking) {

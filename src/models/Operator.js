@@ -11,6 +11,7 @@ const operatorSchema = new mongoose.Schema(
     reviewCount: { type: Number, default: 0, min: 0 },
     description: { type: String, default: '', trim: true },
     logo: { type: String, default: '', trim: true },
+    commissionRate: { type: Number, default: null },
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
     api_user: {
       type: mongoose.Schema.Types.ObjectId,

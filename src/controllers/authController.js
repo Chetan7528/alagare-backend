@@ -10,13 +10,25 @@ const { sendOtpEmail } = require('@services/emailService');
 const { fileUrl } = require('@services/fileUpload');
 const { buildClientKeys } = require('@lib/clientKeys');
 const Device = require('@models/Device');
+const Notification = require('@models/Notification2');
 const { notifyUser } = require('@services/notification');
+
+const generateReferralCode = (fullname, phone) => {
+  const prefix = String(fullname || 'USER')
+    .replace(/[^a-zA-Z]/g, '')
+    .slice(0, 4)
+    .toUpperCase() || 'ALAG';
+  const suffix = String(phone || '')
+    .replace(/[^0-9]/g, '')
+    .slice(-4) || Math.floor(1000 + Math.random() * 9000);
+  return `${prefix}${suffix}`;
+};
 
 module.exports = {
   
   register: async (req, res) => {
     try {
-      const { fullname, email, password, phone, gender, role } = req.body;
+      const { fullname, email, password, phone, gender, role, referralCode } = req.body;
 
       if (!fullname || !phone) {
         return response.badReq(res, { message: 'fullname and phone are required' });
@@ -41,6 +53,7 @@ module.exports = {
         role: role === 'admin' ? 'admin' : 'user',
         isVerified: false,
         api_user: req.apiUser?._id,
+        referralCode: exists?.referralCode || generateReferralCode(fullname, phone),
       };
       if (email && typeof email === 'string' && email.trim().length > 0) {
         userPayload.email = email.toLowerCase().trim();
@@ -55,12 +68,13 @@ module.exports = {
         user = await User.create(userPayload);
       }
 
-      // Generate OTP (Bypass 7777 as requested)
+      // Generate OTP
       const otp = '7777'; 
       await Verification.deleteMany({ user: phone });
       await Verification.create({
         user: phone,
         otp,
+        appliedReferralCode: referralCode ? String(referralCode).trim().toUpperCase() : undefined,
         expiration_at: new Date(Date.now() + 5 * 60 * 1000),
       });
 
@@ -95,6 +109,43 @@ module.exports = {
       if (!user) return response.notFound(res, { message: 'User not found' });
 
       user.isVerified = true;
+      if (!user.referralCode) {
+        user.referralCode = generateReferralCode(user.fullname, user.phone);
+      }
+
+      // Process referral / promo code if provided during registration
+      const appliedCode = ver.appliedReferralCode;
+      if (appliedCode) {
+        const referrer = await User.findOne({ referralCode: appliedCode, _id: { $ne: user._id } });
+        if (referrer) {
+          user.referredBy = referrer._id;
+          user.travelPoints = (user.travelPoints || 0) + 200;
+          user.travelCredit = (user.travelCredit || 0) + 10;
+          referrer.travelPoints = (referrer.travelPoints || 0) + 200;
+          referrer.travelCredit = (referrer.travelCredit || 0) + 10;
+          await referrer.save();
+
+          await notifyUser(
+            referrer,
+            'promoOffers',
+            'Referral Bonus Earned! 🎉',
+            `${user.fullname} joined using your code (${appliedCode})! You earned 200 travel points (€10 credit).`,
+          ).catch(() => {});
+        } else {
+          const Campaign = require('@models/Campaign');
+          const campaign = await Campaign.findOne({ code: appliedCode, status: 'active' });
+          if (campaign) {
+            user.travelPoints = (user.travelPoints || 0) + 150;
+            await notifyUser(
+              user,
+              'promoOffers',
+              'Welcome Promo Applied! 🎁',
+              `Promo code ${campaign.code} applied! 150 travel points added to your account.`,
+            ).catch(() => {});
+          }
+        }
+      }
+
       await user.save();
       await Verification.deleteMany({ user: phone });
 
@@ -193,12 +244,25 @@ module.exports = {
         expiresIn: process.env.JWT_EXPIRES_IN || '7d',
       });
 
-      if (req.body.device_token || req.body.player_id) {
-        await Device.updateOne(
-          { device_token: req.body.device_token },
-          { $set: { player_id: req.body.player_id, user: user._id } },
-          { upsert: true },
-        );
+      const playerId = req.body.player_id || req.body.playerId;
+      const deviceToken = req.body.device_token || req.body.deviceToken;
+      if (playerId || deviceToken) {
+        const filter = [];
+        if (playerId) filter.push({ player_id: playerId });
+        if (deviceToken) filter.push({ device_token: deviceToken });
+        filter.push({ user: user._id });
+
+        await Device.findOneAndUpdate(
+          { $or: filter },
+          {
+            $set: {
+              ...(playerId ? { player_id: playerId } : {}),
+              ...(deviceToken ? { device_token: deviceToken } : {}),
+              user: user._id,
+            },
+          },
+          { upsert: true, new: true },
+        ).catch(() => {});
       }
 
       const userData = user.toObject();
@@ -369,8 +433,14 @@ module.exports = {
   
   myProfile: async (req, res) => {
     try {
-      const user = await User.findById(req.user._id).select('-password');
+      let user = await User.findById(req.user._id).select('-password');
       if (!user) return response.notFound(res, { message: 'User not found' });
+      
+      if (!user.referralCode) {
+        user.referralCode = generateReferralCode(user.fullname, user.phone);
+        await user.save();
+      }
+
       const Booking = require('../models/Booking');
       const userEmail = (user.email || '').trim();
       const userPhone = (user.phone || '').trim();
@@ -381,12 +451,12 @@ module.exports = {
       const confirmedCount = userBookings.filter((b) => b.status === 'confirmed').length;
       const totalTrips = userBookings.length;
       const totalSpent = userBookings.reduce((sum, b) => sum + (b.amount || 0), 0);
-      const totalPoints = (confirmedCount > 0 ? confirmedCount : totalTrips) * 150 + Math.round(totalSpent * 2);
+      const totalPoints = (user.travelPoints || 0) + (confirmedCount > 0 ? confirmedCount : totalTrips) * 150 + Math.round(totalSpent * 2);
 
       const TIER_RANK = { standard: 0, silver: 1, gold: 2, platinum: 3 };
       let tripTier = 'Standard';
-      if (totalTrips >= 5) tripTier = 'Platinum';
-      else if (totalTrips >= 2) tripTier = 'Gold';
+      if (totalTrips >= 5 || totalPoints >= 2000) tripTier = 'Platinum';
+      else if (totalTrips >= 2 || totalPoints >= 800) tripTier = 'Gold';
 
       const storedMember = user.membership || 'Standard';
       const computedMember =
@@ -396,6 +466,7 @@ module.exports = {
       userData.trips = totalTrips;
       userData.points = totalPoints;
       userData.membership = computedMember;
+      userData.referralCode = user.referralCode;
 
       return response.ok(res, { data: userData });
     } catch (error) {
@@ -458,6 +529,18 @@ module.exports = {
         message: 'Notification settings updated',
         data: user.notificationPrefs,
       });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  // User: get in-app notifications
+  getNotifications: async (req, res) => {
+    try {
+      const notifications = await Notification.find({ for: req.user._id })
+        .sort({ createdAt: -1 })
+        .limit(50);
+      return response.ok(res, { notifications });
     } catch (error) {
       return response.error(res, error);
     }

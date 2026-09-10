@@ -29,6 +29,9 @@ const inquirySchema = new mongoose.Schema(
       default: 'open',
     },
     adminNote: { type: String, default: '', trim: true },
+    adminReply: { type: String, default: '', trim: true },
+    resolvedAt: { type: Date },
+    repliedAt: { type: Date },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

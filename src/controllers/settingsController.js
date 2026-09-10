@@ -15,6 +15,9 @@ const toPayload = (doc) => ({
   currency: doc.currency,
   currencySymbol: CURRENCY_SYMBOLS[doc.currency] || doc.currency,
   timezone: doc.timezone,
+  commissionRate: doc.commissionRate != null ? Number(doc.commissionRate) : 5,
+  taxRate: doc.taxRate != null ? Number(doc.taxRate) : 0,
+  serviceFee: doc.serviceFee != null ? Number(doc.serviceFee) : 0,
   notifyBookings: !!doc.notifyBookings,
   notifyUsers: !!doc.notifyUsers,
   maintenanceMode: !!doc.maintenanceMode,
@@ -53,6 +56,9 @@ module.exports = {
           currency: doc.currency,
           currencySymbol: CURRENCY_SYMBOLS[doc.currency] || doc.currency,
           timezone: doc.timezone,
+          commissionRate: doc.commissionRate != null ? Number(doc.commissionRate) : 5,
+          taxRate: doc.taxRate != null ? Number(doc.taxRate) : 0,
+          serviceFee: doc.serviceFee != null ? Number(doc.serviceFee) : 0,
           maintenanceMode: !!doc.maintenanceMode,
         },
       });
@@ -68,6 +74,9 @@ module.exports = {
         supportEmail,
         currency,
         timezone,
+        commissionRate,
+        taxRate,
+        serviceFee,
         notifyBookings,
         notifyUsers,
         maintenanceMode,
@@ -76,6 +85,27 @@ module.exports = {
       const update = {};
       if (platformName !== undefined) update.platformName = String(platformName).trim();
       if (supportEmail !== undefined) update.supportEmail = String(supportEmail).trim();
+      if (commissionRate !== undefined) {
+        if (commissionRate === '' || commissionRate === null || isNaN(commissionRate)) {
+          update.commissionRate = 0;
+        } else {
+          update.commissionRate = Math.max(0, Number(commissionRate));
+        }
+      }
+      if (taxRate !== undefined) {
+        if (taxRate === '' || taxRate === null || isNaN(taxRate)) {
+          update.taxRate = 0;
+        } else {
+          update.taxRate = Math.max(0, Number(taxRate));
+        }
+      }
+      if (serviceFee !== undefined) {
+        if (serviceFee === '' || serviceFee === null || isNaN(serviceFee)) {
+          update.serviceFee = 0;
+        } else {
+          update.serviceFee = Math.max(0, Number(serviceFee));
+        }
+      }
       if (currency !== undefined) {
         const allowed = ['EUR', 'USD', 'GBP', 'INR'];
         if (!allowed.includes(currency)) {

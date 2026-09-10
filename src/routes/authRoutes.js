@@ -15,6 +15,7 @@ const {
   updateProfile,
   getNotificationSettings,
   updateNotificationSettings,
+  getNotifications,
   getAllUsers,
   getUserById,
   deleteUser,
@@ -40,6 +41,7 @@ router.put('/profile', auth(), upload.single('image'), updateProfile);
 router.put('/password', auth(), updatePassword);
 router.get('/notification-settings', auth(), getNotificationSettings);
 router.put('/notification-settings', auth(), updateNotificationSettings);
+router.get('/notifications', auth(), getNotifications);
 
 // Mobile app bus APIs (JWT + X-API-Key — tenant = req.apiUser)
 router.get('/buses/home', auth(), busController.getHomeContent);

@@ -9,8 +9,10 @@ const OperatorApplication = require('@models/OperatorApplication');
 const CallbackRequest = require('@models/CallbackRequest');
 const City = require('@models/City');
 const PayoutSettlement = require('@models/PayoutSettlement');
+const PlatformSettings = require('@models/PlatformSettings');
 const response = require('@responses');
 const { fileUrl } = require('@services/fileUpload');
+const { notifyUser, notifyAllUsers } = require('@services/notification');
 
 const getOperatorFilter = async (req) => {
   const app = await OperatorApplication.findOne({
@@ -199,6 +201,12 @@ const createRoute = async (req, res) => {
       api_user: req.apiUser._id,
     });
 
+    if (route.status === 'active') {
+      const notifTitle = `New Route: ${route.from} → ${route.to}`;
+      const notifContent = `New trips available from ${route.from} to ${route.to} with ${route.operator} starting at €${route.price}!`;
+      await notifyAllUsers('newRoutes', notifTitle, notifContent, route._id).catch(() => {});
+    }
+
     return response.created(res, { message: 'Route created', route });
   } catch (error) {
     return response.error(res, error);
@@ -326,8 +334,42 @@ const updateBookingStatus = async (req, res) => {
 
     if (!booking) return response.notFound(res, { message: 'Booking not found' });
 
+    const previousStatus = booking.status;
     booking.status = status;
     await booking.save();
+
+    if (previousStatus !== status) {
+      let user = null;
+      if (booking.user) {
+        user = await User.findById(booking.user);
+      }
+      if (!user && (booking.email || booking.phone)) {
+        const match = [];
+        if (booking.email) match.push({ email: (booking.email || '').toLowerCase().trim() });
+        if (booking.phone) match.push({ phone: (booking.phone || '').trim() });
+        if (match.length > 0) {
+          user = await User.findOne({ $or: match });
+        }
+      }
+
+      const title = status === 'confirmed'
+        ? 'Booking Confirmed'
+        : status === 'cancelled'
+        ? 'Booking Cancelled'
+        : 'Booking Status Updated';
+
+      const content = status === 'confirmed'
+        ? `Your booking ${booking.ref} for ${booking.route} has been confirmed.`
+        : status === 'cancelled'
+        ? `Your booking ${booking.ref} for ${booking.route} has been cancelled by the operator.`
+        : `Your booking ${booking.ref} for ${booking.route} status is now ${status}.`;
+
+      const category = status === 'confirmed' ? 'bookingConfirmed' : 'tripUpdates';
+
+      if (user) {
+        await notifyUser(user, category, title, content).catch((e) => console.error('Notification error:', e));
+      }
+    }
 
     return response.ok(res, { message: 'Booking updated', booking: toBooking(booking) });
   } catch (error) {
@@ -393,6 +435,12 @@ const createCampaign = async (req, res) => {
       operator: filter.operator,
       api_user: req.apiUser._id,
     });
+
+    if (campaign.status === 'active') {
+      const notifTitle = `Special Offer: ${campaign.title}`;
+      const notifContent = `Use promo code ${campaign.code} to get ${campaign.discountPercent}% OFF on your next booking!`;
+      await notifyAllUsers('promoOffers', notifTitle, notifContent, campaign._id).catch(() => {});
+    }
 
     return response.created(res, { message: 'Campaign created successfully', campaign });
   } catch (error) {
@@ -548,6 +596,19 @@ const getOperatorRevenue = async (req, res) => {
     }).sort({ createdAt: -1 });
 
     const validBookings = bookings.filter((b) => b.status !== 'cancelled');
+
+    // Dynamic commission rate from platform settings / operator doc
+    let commissionRate = 5;
+    try {
+      const pSettings = await PlatformSettings.findOne({ api_user: req.apiUser._id });
+      if (pSettings?.commissionRate != null) commissionRate = Number(pSettings.commissionRate);
+      const opDoc = await Operator.findOne({
+        name: new RegExp(`^${String(filter.operator).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        api_user: req.apiUser._id,
+      });
+      if (opDoc?.commissionRate != null) commissionRate = Number(opDoc.commissionRate);
+    } catch (e) {}
+
     let grossRevenue = validBookings.reduce((acc, b) => acc + (Number(b.amount || b.price) || 0), 0);
 
     if (grossRevenue === 0 && operatorRoutes.length > 0) {
@@ -556,27 +617,40 @@ const getOperatorRevenue = async (req, res) => {
       grossRevenue = 1250;
     }
 
-    const platformCommission = Math.round(grossRevenue * 0.1);
-    const netEarnings = grossRevenue - platformCommission;
+    const platformCommission = Math.round(grossRevenue * (commissionRate / 100));
+    const totalLifetimeNetEarnings = Math.max(0, grossRevenue - platformCommission);
 
     const settlementsDocs = await PayoutSettlement.find({
       api_user: req.apiUser._id,
-      operator: filter.operator,
+      $or: [
+        { user: req.user._id },
+        { operator: filter.operator },
+        { operator: new RegExp(`^${String(filter.operator).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      ],
     }).sort({ createdAt: -1 });
 
     const totalSettledOrPending = settlementsDocs
       .filter((s) => s.status !== 'suspended' && s.status !== 'rejected')
-      .reduce((acc, s) => acc + (s.requestedAmount || 0), 0);
+      .reduce((acc, s) => acc + (Number(s.requestedAmount) || 0), 0);
 
-    const pendingBalance = Math.max(0, netEarnings - totalSettledOrPending);
+    const totalSettled = settlementsDocs
+      .filter((s) => s.status === 'settled')
+      .reduce((acc, s) => acc + (Number(s.requestedAmount) || 0), 0);
+
+    const totalPendingPayouts = settlementsDocs
+      .filter((s) => s.status === 'pending' || s.status === 'verified')
+      .reduce((acc, s) => acc + (Number(s.requestedAmount) || 0), 0);
+
+    // Remaining Net Operator Balance available after pending/settled withdrawals
+    const currentNetEarnings = Math.max(0, totalLifetimeNetEarnings - totalSettledOrPending);
 
     const settlements = settlementsDocs.map((s) => ({
       _id: String(s._id),
       id: s.settlementId,
       date: s.createdAt,
       period: s.period || 'Current Settlement',
-      amount: s.netPayout,
-      commission: s.commissionDeducted,
+      amount: s.netPayout ?? s.requestedAmount,
+      commission: s.commissionDeducted || 0,
       requestedAmount: s.requestedAmount,
       status: s.status,
       method: s.paymentMethod,
@@ -587,9 +661,16 @@ const getOperatorRevenue = async (req, res) => {
     return response.ok(res, {
       stats: {
         grossRevenue,
-        netEarnings,
+        commissionRate,
         platformCommission,
-        pendingBalance,
+        totalLifetimeNetEarnings,
+        withdrawnAmount: totalSettledOrPending,
+        totalSettled,
+        totalPendingPayouts,
+        netEarnings: currentNetEarnings,
+        netOperatorEarnings: currentNetEarnings,
+        availableBalance: currentNetEarnings,
+        pendingBalance: currentNetEarnings,
         totalBookings: Math.max(bookings.length, operatorRoutes.length * 2),
         confirmedBookings: Math.max(validBookings.length, operatorRoutes.length * 2),
       },
@@ -610,16 +691,63 @@ const requestPayout = async (req, res) => {
       return response.badReq(res, { message: 'Valid withdrawal amount is required' });
     }
 
-    const commissionDeducted = Math.round(requestedAmount * 0.1);
-    const netPayout = requestedAmount - commissionDeducted;
+    let commissionRate = 5;
+    try {
+      const pSettings = await PlatformSettings.findOne({ api_user: req.apiUser._id });
+      if (pSettings?.commissionRate != null) commissionRate = Number(pSettings.commissionRate);
+      const opDoc = await Operator.findOne({
+        name: new RegExp(`^${String(filter.operator).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        api_user: req.apiUser._id,
+      });
+      if (opDoc?.commissionRate != null) commissionRate = Number(opDoc.commissionRate);
+    } catch (e) {}
+
+    const operatorRoutes = await BusRoute.find({ ...filter });
+    const routeIds = operatorRoutes.map((r) => r.routeId || String(r._id)).filter(Boolean);
+    const bookings = await Booking.find({
+      api_user: req.apiUser._id,
+      $or: [
+        { operator: filter.operator },
+        { routeId: { $in: routeIds } },
+      ],
+      status: { $ne: 'cancelled' },
+    });
+    let grossRevenue = bookings.reduce((acc, b) => acc + (Number(b.amount || b.price) || 0), 0);
+    if (grossRevenue === 0 && operatorRoutes.length > 0) {
+      grossRevenue = operatorRoutes.reduce((acc, r) => acc + (Number(r.price || 45) * 8), 0);
+    } else if (grossRevenue === 0) {
+      grossRevenue = 1250;
+    }
+    const platformCommission = Math.round(grossRevenue * (commissionRate / 100));
+    const totalLifetimeNet = Math.max(0, grossRevenue - platformCommission);
+
+    const existingSettlements = await PayoutSettlement.find({
+      api_user: req.apiUser._id,
+      $or: [
+        { user: req.user._id },
+        { operator: filter.operator },
+        { operator: new RegExp(`^${String(filter.operator).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      ],
+      status: { $nin: ['suspended', 'rejected'] },
+    });
+    const alreadyWithdrawn = existingSettlements.reduce((acc, s) => acc + (Number(s.requestedAmount) || 0), 0);
+    const currentAvailable = Math.max(0, totalLifetimeNet - alreadyWithdrawn);
+
+    if (requestedAmount > currentAvailable) {
+      return response.badReq(res, {
+        message: `Withdrawal amount (€${requestedAmount}) exceeds available balance (€${currentAvailable})`,
+      });
+    }
+
     const settlementId = `SET-${Math.floor(10000 + Math.random() * 90000)}`;
 
     const settlement = await PayoutSettlement.create({
       settlementId,
+      user: req.user._id,
       operator: filter.operator,
       requestedAmount,
-      commissionDeducted,
-      netPayout,
+      commissionDeducted: 0,
+      netPayout: requestedAmount,
       bankDetails: bankDetails || 'HDFC Bank (A/C: *******8492)',
       notes: notes ? String(notes).trim() : '',
       status: 'pending',

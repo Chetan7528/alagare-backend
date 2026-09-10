@@ -4,8 +4,13 @@ const mongoose = require('mongoose');
 const bookingSchema = new mongoose.Schema(
   {
     ref: { type: String, required: true, unique: true, trim: true },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
     passenger: { type: String, required: true, trim: true },
     email: { type: String, required: true, lowercase: true, trim: true },
+    phone: { type: String, trim: true },
     route: { type: String, required: true, trim: true },
     routeId: { type: String, trim: true },
     operator: { type: String, trim: true },
@@ -17,6 +22,12 @@ const bookingSchema = new mongoose.Schema(
     busType: { type: String, trim: true },
     seats: { type: Number, default: 1 },
     seatKeys: { type: [String], default: [] },
+    operatorBaseFare: { type: Number, default: 0 },
+    commissionRate: { type: Number, default: 0 },
+    commissionAmount: { type: Number, default: 0 },
+    taxRate: { type: Number, default: 0 },
+    taxAmount: { type: Number, default: 0 },
+    serviceFee: { type: Number, default: 0 },
     amount: { type: Number, required: true, min: 0 },
     status: {
       type: String,

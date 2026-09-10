@@ -15,6 +15,7 @@ const verificationSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    appliedReferralCode: { type: String },
     attempts: { type: Number, default: 0 },
     api_user: {
       type: mongoose.Schema.Types.ObjectId,

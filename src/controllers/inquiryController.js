@@ -1,6 +1,7 @@
 'use strict';
 const Inquiry = require('@models/Inquiry');
 const response = require('@responses');
+const notificationService = require('@services/notification');
 
 const tenantFilter = (req) => ({ api_user: req.apiUser._id });
 
@@ -25,6 +26,9 @@ const toPublic = (doc) => ({
   message: doc.message,
   status: doc.status,
   adminNote: doc.adminNote || '',
+  adminReply: doc.adminReply || '',
+  resolvedAt: doc.resolvedAt || null,
+  repliedAt: doc.repliedAt || null,
   createdAt: doc.createdAt,
   updatedAt: doc.updatedAt,
 });
@@ -71,9 +75,15 @@ module.exports = {
 
   listMyInquiries: async (req, res) => {
     try {
+      const userEmail = req.user?.email ? String(req.user.email).trim().toLowerCase() : '';
+      const userConditions = [{ user: req.user._id }];
+      if (userEmail) {
+        userConditions.push({ email: userEmail });
+      }
+
       const items = await Inquiry.find({
         ...tenantFilter(req),
-        user: req.user._id,
+        $or: userConditions,
       })
         .sort({ createdAt: -1 })
         .limit(50);
@@ -108,7 +118,14 @@ module.exports = {
 
   updateInquiry: async (req, res) => {
     try {
-      const { status, adminNote } = req.body;
+      const { status, adminNote, adminReply, reply } = req.body;
+      const finalReply = adminReply !== undefined ? adminReply : reply;
+
+      const inquiry = await Inquiry.findOne({ _id: req.params.id, ...tenantFilter(req) });
+      if (!inquiry) {
+        return response.notFound(res, { message: 'Inquiry not found' });
+      }
+
       const update = {};
       if (status !== undefined) {
         const allowed = ['open', 'in_progress', 'resolved', 'closed'];
@@ -116,20 +133,45 @@ module.exports = {
           return response.badReq(res, { message: 'Invalid status' });
         }
         update.status = status;
+        if (status === 'resolved' && inquiry.status !== 'resolved') {
+          update.resolvedAt = new Date();
+        }
       }
-      if (adminNote !== undefined) update.adminNote = String(adminNote);
+      if (adminNote !== undefined) update.adminNote = String(adminNote).trim();
+      if (finalReply !== undefined) {
+        update.adminReply = String(finalReply).trim();
+        update.repliedAt = new Date();
+      }
 
-      const inquiry = await Inquiry.findOneAndUpdate(
-        { _id: req.params.id, ...tenantFilter(req) },
+      const updated = await Inquiry.findByIdAndUpdate(
+        inquiry._id,
         update,
         { new: true },
       );
-      if (!inquiry) {
-        return response.notFound(res, { message: 'Inquiry not found' });
+
+      if (updated.user) {
+        try {
+          if (finalReply && String(finalReply).trim()) {
+            await notificationService.notify(
+              updated.user,
+              `Support Reply: ${updated.subject}`,
+              `Admin response: ${String(finalReply).trim()}`
+            );
+          } else if (status === 'resolved' && inquiry.status !== 'resolved') {
+            await notificationService.notify(
+              updated.user,
+              'Support Issue Resolved',
+              `Your inquiry regarding "${updated.subject}" has been marked as resolved.`
+            );
+          }
+        } catch (notifErr) {
+          console.error('Failed to notify user for inquiry update:', notifErr);
+        }
       }
+
       return response.ok(res, {
-        message: 'Inquiry updated',
-        inquiry: toPublic(inquiry),
+        message: 'Inquiry updated successfully',
+        inquiry: toPublic(updated),
       });
     } catch (error) {
       return response.error(res, error);
