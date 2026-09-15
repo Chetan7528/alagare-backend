@@ -129,7 +129,14 @@ module.exports = {
             referrer,
             'promoOffers',
             'Referral Bonus Earned! 🎉',
-            `${user.fullname} joined using your code (${appliedCode})! You earned 200 travel points (€10 credit).`,
+            `${user.fullname} joined using your code (${appliedCode})! You received €10 travel credit + 200 travel points.`,
+          ).catch(() => {});
+
+          await notifyUser(
+            user,
+            'promoOffers',
+            'Welcome Bonus Earned! 🎉',
+            `You joined using ${referrer.fullname}'s referral code! You received €10 travel credit + 200 travel points.`,
           ).catch(() => {});
         } else {
           const Campaign = require('@models/Campaign');
@@ -465,6 +472,8 @@ module.exports = {
       const userData = user.toObject();
       userData.trips = totalTrips;
       userData.points = totalPoints;
+      userData.travelCredit = Number(user.travelCredit || 0);
+      userData.credit = Number(user.travelCredit || 0);
       userData.membership = computedMember;
       userData.referralCode = user.referralCode;
 

@@ -18,7 +18,7 @@ const busRouteSchema = new mongoose.Schema(
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
     isPopular: { type: Boolean, default: false },
     occupiedSeats: { type: [String], default: [] },
-    ladiesSeats: { type: [String], default: ['0-1', '2-0', '5-2', '5-3', '7-1'] },
+    ladiesSeats: { type: [String], default: [] },
 
     /** Dynamic Stops & Time Lock */
     stops: [
@@ -79,8 +79,8 @@ const busRouteSchema = new mongoose.Schema(
       default: 'Standard Premier includes meal and lounge access.',
       trim: true,
     },
-    taxRate: { type: Number, default: 0.086, min: 0 },
-    serviceFee: { type: Number, default: 4.5, min: 0 },
+    taxRate: { type: Number, min: 0 },
+    serviceFee: { type: Number, min: 0 },
 
     api_user: {
       type: mongoose.Schema.Types.ObjectId,

@@ -217,8 +217,8 @@ const priceBreakdown = (route, seatCount = 1, commissionRate = 5, taxRate = 0, s
   const commissionAmount = Math.round(commissionPerSeat * seatCount * 100) / 100;
   const baseFare = Math.round(customerUnitPrice * seatCount * 100) / 100;
 
-  const effectiveTaxRate = route.taxRate != null ? Number(route.taxRate) : Number(taxRate || 0);
-  const effectiveServiceFee = route.serviceFee != null ? Number(route.serviceFee) : Number(serviceFee || 0);
+  const effectiveTaxRate = Number(taxRate != null ? taxRate : 0);
+  const effectiveServiceFee = Number(serviceFee != null ? serviceFee : 0);
   const taxes = Math.round(baseFare * (effectiveTaxRate / 100) * 100) / 100;
   const total = Math.round((baseFare + taxes + effectiveServiceFee) * 100) / 100;
 
@@ -527,8 +527,8 @@ module.exports = {
         seatsPerSide: layout.seatsPerSide,
         occupiedSeats: occupiedSeats,
         occupied: occupiedSeats,
-        ladiesSeats: route.ladiesSeats || ['0-1', '2-0', '5-2', '5-3', '7-1'],
-        ladies: route.ladiesSeats || ['0-1', '2-0', '5-2', '5-3', '7-1'],
+        ladiesSeats: route.ladiesSeats || [],
+        ladies: route.ladiesSeats || [],
         seatsAvailable: Math.max(0, route.seats - occupiedSeats.length),
       });
     } catch (error) {
@@ -585,6 +585,7 @@ module.exports = {
         paymentIntentId,
         paymentStatus,
         date,
+        promoCode,
         discountAmount = 0,
         amount,
         departure,
@@ -614,6 +615,71 @@ module.exports = {
         return response.badReq(res, {
           message: 'This bus has already departed for the selected date and time. Please choose an upcoming trip.',
         });
+      }
+
+      // Check first-trip promo constraint if FIRSTRIDE or referral code is used
+      if (promoCode) {
+        const cleanPromo = String(promoCode).trim().toUpperCase();
+        if (cleanPromo === 'FIRSTRIDE' || /FIRST/i.test(cleanPromo)) {
+          const prior = await Booking.findOne({
+            ...userBookingFilter(req),
+            status: { $in: ['confirmed', 'pending'] },
+          });
+          if (prior) {
+            return response.badReq(res, {
+              message: `${cleanPromo} is only valid for first-time travelers on their initial booking.`,
+            });
+          }
+        } else {
+          const Campaign = require('@models/Campaign');
+          const campaign = await Campaign.findOne({
+            code: cleanPromo,
+            status: 'active',
+            ...tenantFilter(req),
+          });
+
+          if (campaign) {
+            if (
+              campaign.operator &&
+              campaign.operator.trim().toLowerCase() !== 'all' &&
+              campaign.operator.trim().toLowerCase() !== 'admin' &&
+              campaign.operator.trim().toLowerCase() !== 'alagare'
+            ) {
+              const routeOp = (route.operator || '').trim().toLowerCase();
+              const campaignOp = campaign.operator.trim().toLowerCase();
+              if (routeOp && routeOp !== campaignOp) {
+                return response.badReq(res, {
+                  message: `This promo code is only valid for ${campaign.operator} trips.`,
+                });
+              }
+            }
+            if (campaign.routeId && campaign.routeId !== 'all' && campaign.routeId !== route.routeId) {
+              return response.badReq(res, {
+                message: 'Promo code is not applicable for this route.',
+              });
+            }
+          } else {
+            const friend = await User.findOne({ referralCode: cleanPromo });
+            if (friend) {
+              const currentUser = await User.findById(req.user?._id);
+              const isLinkedReferral = currentUser?.referredBy && currentUser.referredBy.toString() === friend._id.toString();
+              if (!isLinkedReferral) {
+                return response.badReq(res, {
+                  message: 'Referral codes must be applied during Sign Up. You are not linked to this referral code.',
+                });
+              }
+              const prior = await Booking.findOne({
+                ...userBookingFilter(req),
+                status: { $in: ['confirmed', 'pending'] },
+              });
+              if (prior) {
+                return response.badReq(res, {
+                  message: 'Referral discount is only valid on your first booking.',
+                });
+              }
+            }
+          }
+        }
       }
 
       const seatList = Array.isArray(seats) ? seats.map(String) : [];
@@ -691,6 +757,8 @@ module.exports = {
         taxRate: pricing.taxRate,
         taxAmount: pricing.taxes,
         serviceFee: pricing.serviceFee,
+        promoCode: promoCode ? String(promoCode).trim().toUpperCase() : '',
+        discountAmount: Number(discountAmount) || 0,
         amount: finalAmount,
         status: 'confirmed',
         paymentMethod: paymentMethod || 'stripe',
@@ -698,6 +766,20 @@ module.exports = {
         paymentStatus: paymentStatus || 'paid',
         api_user: req.apiUser._id,
       });
+
+      // Deduct travel credit if referral code or travel credit was used
+      if (promoCode && Number(discountAmount) > 0 && req.user?._id) {
+        const cleanPromo = String(promoCode).trim().toUpperCase();
+        const isCreditCode = cleanPromo === 'TRAVELCREDIT' || cleanPromo === 'CREDIT' || cleanPromo === 'REFERRAL';
+        const friend = await User.findOne({ referralCode: cleanPromo });
+        if (isCreditCode || friend) {
+          const u = await User.findById(req.user._id);
+          if (u && (u.travelCredit || 0) > 0) {
+            u.travelCredit = Math.max(0, (u.travelCredit || 0) - Number(discountAmount));
+            await u.save();
+          }
+        }
+      }
 
       await notifyUser(
         req.user,
@@ -796,6 +878,16 @@ module.exports = {
       const promoCode = String(code).trim().toUpperCase();
       const amount = Number(totalAmount) || 0;
 
+      // Helper to check if the user has any prior active/confirmed trips
+      const hasPriorConfirmedTrips = async () => {
+        const filter = userBookingFilter(req);
+        const prior = await Booking.findOne({
+          ...filter,
+          status: { $in: ['confirmed', 'pending'] },
+        });
+        return !!prior;
+      };
+
       // 1. Check Operator / Admin Campaigns
       const campaign = await Campaign.findOne({
         code: promoCode,
@@ -804,8 +896,55 @@ module.exports = {
       });
 
       if (campaign) {
-        if (campaign.routeId && campaign.routeId !== 'all' && campaign.routeId !== routeId) {
+        let selectedRoute = null;
+        if (routeId) {
+          const mongoose = require('mongoose');
+          const isObjId = mongoose.Types.ObjectId.isValid(routeId);
+          selectedRoute = await BusRoute.findOne({
+            $or: [
+              { routeId },
+              ...(isObjId ? [{ _id: routeId }] : []),
+            ],
+            ...tenantFilter(req),
+          });
+          if (!selectedRoute) {
+            selectedRoute = await BusRoute.findOne({
+              $or: [
+                { routeId },
+                ...(isObjId ? [{ _id: routeId }] : []),
+              ],
+            });
+          }
+        }
+
+        if (
+          campaign.operator &&
+          campaign.operator.trim().toLowerCase() !== 'all' &&
+          campaign.operator.trim().toLowerCase() !== 'admin' &&
+          campaign.operator.trim().toLowerCase() !== 'alagare'
+        ) {
+          const routeOp = ((selectedRoute && selectedRoute.operator) || '').trim().toLowerCase();
+          const campaignOp = campaign.operator.trim().toLowerCase();
+          if (routeOp && routeOp !== campaignOp) {
+            return response.badReq(res, {
+              message: `This promo code is only valid for ${campaign.operator} trips.`,
+            });
+          }
+        }
+
+        const cleanRouteId = selectedRoute?.routeId || routeId;
+        if (campaign.routeId && campaign.routeId !== 'all' && cleanRouteId && campaign.routeId !== cleanRouteId) {
           return response.badReq(res, { message: 'Promo code is not applicable for this route' });
+        }
+
+        const isFirstOnly = campaign.isFirstTripOnly || promoCode === 'FIRSTRIDE' || /FIRST/i.test(campaign.code) || /FIRST/i.test(campaign.title || '');
+        if (isFirstOnly) {
+          const alreadyTravelled = await hasPriorConfirmedTrips();
+          if (alreadyTravelled) {
+            return response.badReq(res, {
+              message: `${promoCode} is only valid for first-time travelers on their initial booking.`,
+            });
+          }
         }
 
         let discount = Math.round(((amount * campaign.discountPercent) / 100) * 100) / 100;
@@ -825,11 +964,21 @@ module.exports = {
         });
       }
 
-      // 2. Check App Home Promo Banner Code
+      // 2. Check App Home Promo Banner Code (FIRSTRIDE / Save 20% on First Trip)
       const home = await HomeContent.findOne({
         ...tenantFilter(req),
       });
       if (home && home.promoCode && home.promoCode.trim().toUpperCase() === promoCode) {
+        const isFirstOnly = promoCode === 'FIRSTRIDE' || /FIRST/i.test(home.promoTitle || '') || /FIRST/i.test(home.promoCode || '') || /FIRST/i.test(home.promoDesc || '');
+        if (isFirstOnly) {
+          const alreadyTravelled = await hasPriorConfirmedTrips();
+          if (alreadyTravelled) {
+            return response.badReq(res, {
+              message: `${promoCode} is only valid for first-time travelers on their initial booking.`,
+            });
+          }
+        }
+
         const discountPercent = 20;
         const discount = Math.round(((amount * discountPercent) / 100) * 100) / 100;
         const finalAmount = Math.max(0, Math.round((amount - discount) * 100) / 100);
@@ -849,17 +998,66 @@ module.exports = {
         referralCode: promoCode,
       });
       if (friend) {
-        const discountPercent = 15;
-        let discount = Math.round(((amount * discountPercent) / 100) * 100) / 100;
-        if (discount > 10) discount = 10;
+        if (friend._id.toString() === req.user?._id?.toString()) {
+          return response.badReq(res, { message: 'You cannot use your own referral code at checkout.' });
+        }
+
+        // Referral codes can only be redeemed by the user who registered using this code
+        const currentUser = await User.findById(req.user?._id);
+        const isLinkedReferral = currentUser?.referredBy && currentUser.referredBy.toString() === friend._id.toString();
+
+        if (!isLinkedReferral) {
+          return response.badReq(res, {
+            message: 'Referral codes must be applied during Sign Up. You are not linked to this referral code.',
+          });
+        }
+
+        const alreadyTravelled = await hasPriorConfirmedTrips();
+        if (alreadyTravelled) {
+          return response.badReq(res, {
+            message: 'Referral discount is only valid on your first booking.',
+          });
+        }
+
+        const availableCredit = currentUser?.travelCredit || 0;
+        if (availableCredit <= 0) {
+          return response.badReq(res, {
+            message: 'Your €10 referral travel credit has already been used.',
+          });
+        }
+
+        const discount = Math.min(10, Math.min(amount, availableCredit));
         const finalAmount = Math.max(0, Math.round((amount - discount) * 100) / 100);
 
         return response.ok(res, {
-          message: `Referral discount from ${friend.fullname} applied!`,
+          message: `Referral travel credit from ${friend.fullname} applied (€${discount})!`,
           code: promoCode,
-          title: `Referral Credit (${friend.fullname})`,
-          discountPercent,
+          title: `Referral Credit (€${discount})`,
           discount,
+          isReferralCredit: true,
+          finalAmount,
+        });
+      }
+
+      // 4. Check TRAVELCREDIT / CREDIT / REFERRAL (Allow users to redeem their earned travel credit balance)
+      if (promoCode === 'TRAVELCREDIT' || promoCode === 'CREDIT' || promoCode === 'REFERRAL') {
+        const currentUser = await User.findById(req.user?._id);
+        const availableCredit = currentUser?.travelCredit || 0;
+        if (availableCredit <= 0) {
+          return response.badReq(res, {
+            message: 'You do not have any travel credit available to redeem.',
+          });
+        }
+
+        const discount = Math.min(availableCredit, amount);
+        const finalAmount = Math.max(0, Math.round((amount - discount) * 100) / 100);
+
+        return response.ok(res, {
+          message: `Travel credit of €${discount} applied!`,
+          code: promoCode,
+          title: `Travel Credit (€${discount})`,
+          discount,
+          isReferralCredit: true,
           finalAmount,
         });
       }

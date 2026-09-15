@@ -1,5 +1,7 @@
-module.exports = (res,info) => {
+module.exports = (res, info) => {
     return res.status(409).send({
-        'status': false, data: info
+        status: false,
+        message: (info && info.message) ? info.message : (typeof info === 'string' ? info : 'Conflict error'),
+        data: info,
     });
 };

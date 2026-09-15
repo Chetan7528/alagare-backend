@@ -170,7 +170,7 @@ const createRoute = async (req, res) => {
       parsedFacilities = facilities.split(',').map((s) => s.trim()).filter(Boolean);
     }
 
-    let parsedLadies = ['0-1', '2-0', '5-2', '5-3', '7-1'];
+    let parsedLadies = [];
     if (Array.isArray(ladiesSeats)) {
       parsedLadies = ladiesSeats;
     } else if (typeof ladiesSeats === 'string' && ladiesSeats.trim()) {
@@ -417,14 +417,21 @@ const createCampaign = async (req, res) => {
       return response.badReq(res, { message: 'code, title and discountPercent are required' });
     }
 
+    const cleanCode = String(code).trim().toUpperCase();
+
     const existing = await Campaign.findOne({
-      code: String(code).trim().toUpperCase(),
+      code: cleanCode,
       api_user: req.apiUser._id,
     });
-    if (existing) return response.conflict(res, { message: 'Promo code already exists' });
+    if (existing) {
+      const owner = existing.operator ? ` (by operator "${existing.operator}")` : '';
+      return response.conflict(res, {
+        message: `Coupon with code "${cleanCode}" already exists${owner}. Please use a unique coupon code.`,
+      });
+    }
 
     const campaign = await Campaign.create({
-      code: String(code).trim().toUpperCase(),
+      code: cleanCode,
       title: String(title).trim(),
       discountPercent: Number(discountPercent),
       maxDiscount: maxDiscount != null ? Number(maxDiscount) : 0,
@@ -450,6 +457,20 @@ const createCampaign = async (req, res) => {
 
 const updateCampaign = async (req, res) => {
   try {
+    if (req.body.code) {
+      const cleanCode = String(req.body.code).trim().toUpperCase();
+      const existing = await Campaign.findOne({
+        code: cleanCode,
+        _id: { $ne: req.params.id },
+        api_user: req.apiUser._id,
+      });
+      if (existing) {
+        const owner = existing.operator ? ` (by operator "${existing.operator}")` : '';
+        return response.conflict(res, {
+          message: `Coupon with code "${cleanCode}" already exists${owner}. Please use a unique coupon code.`,
+        });
+      }
+    }
     const campaign = await Campaign.findOneAndUpdate(
       { _id: req.params.id, api_user: req.apiUser._id },
       { $set: req.body },
@@ -582,7 +603,7 @@ const getOperatorRevenue = async (req, res) => {
       email: req.user.email,
       api_user: req.apiUser._id,
     });
-    const defaultBank = appDoc?.bankAccount || (appDoc?.companyName ? `${appDoc.companyName} Registered Bank (A/C: *******8492)` : 'HDFC Bank (A/C: *******8492)');
+    const defaultBank = appDoc?.bankAccount || (appDoc?.companyName ? `${appDoc.companyName} Bank Account` : 'No bank account linked');
 
     const operatorRoutes = await BusRoute.find({ ...filter });
     const routeIds = operatorRoutes.map((r) => r.routeId || String(r._id)).filter(Boolean);
@@ -609,16 +630,9 @@ const getOperatorRevenue = async (req, res) => {
       if (opDoc?.commissionRate != null) commissionRate = Number(opDoc.commissionRate);
     } catch (e) {}
 
-    let grossRevenue = validBookings.reduce((acc, b) => acc + (Number(b.amount || b.price) || 0), 0);
-
-    if (grossRevenue === 0 && operatorRoutes.length > 0) {
-      grossRevenue = operatorRoutes.reduce((acc, r) => acc + (Number(r.price || 45) * 8), 0);
-    } else if (grossRevenue === 0) {
-      grossRevenue = 1250;
-    }
-
-    const platformCommission = Math.round(grossRevenue * (commissionRate / 100));
-    const totalLifetimeNetEarnings = Math.max(0, grossRevenue - platformCommission);
+    const grossRevenue = validBookings.reduce((acc, b) => acc + (Number(b.amount || b.price) || 0), 0);
+    const platformCommission = Math.round(grossRevenue * (commissionRate / 100) * 100) / 100;
+    const totalLifetimeNetEarnings = Math.max(0, Math.round((grossRevenue - platformCommission) * 100) / 100);
 
     const settlementsDocs = await PayoutSettlement.find({
       api_user: req.apiUser._id,
@@ -671,8 +685,8 @@ const getOperatorRevenue = async (req, res) => {
         netOperatorEarnings: currentNetEarnings,
         availableBalance: currentNetEarnings,
         pendingBalance: currentNetEarnings,
-        totalBookings: Math.max(bookings.length, operatorRoutes.length * 2),
-        confirmedBookings: Math.max(validBookings.length, operatorRoutes.length * 2),
+        totalBookings: bookings.length,
+        confirmedBookings: validBookings.length,
       },
       bankAccount: defaultBank,
       settlements,
@@ -712,14 +726,9 @@ const requestPayout = async (req, res) => {
       ],
       status: { $ne: 'cancelled' },
     });
-    let grossRevenue = bookings.reduce((acc, b) => acc + (Number(b.amount || b.price) || 0), 0);
-    if (grossRevenue === 0 && operatorRoutes.length > 0) {
-      grossRevenue = operatorRoutes.reduce((acc, r) => acc + (Number(r.price || 45) * 8), 0);
-    } else if (grossRevenue === 0) {
-      grossRevenue = 1250;
-    }
-    const platformCommission = Math.round(grossRevenue * (commissionRate / 100));
-    const totalLifetimeNet = Math.max(0, grossRevenue - platformCommission);
+    const grossRevenue = bookings.reduce((acc, b) => acc + (Number(b.amount || b.price) || 0), 0);
+    const platformCommission = Math.round(grossRevenue * (commissionRate / 100) * 100) / 100;
+    const totalLifetimeNet = Math.max(0, Math.round((grossRevenue - platformCommission) * 100) / 100);
 
     const existingSettlements = await PayoutSettlement.find({
       api_user: req.apiUser._id,
