@@ -13,6 +13,7 @@ const PlatformSettings = require('@models/PlatformSettings');
 const response = require('@responses');
 const { fileUrl } = require('@services/fileUpload');
 const { notifyUser, notifyAllUsers } = require('@services/notification');
+const sycapay = require('@services/sycapayService');
 
 const getOperatorFilter = async (req) => {
   const app = await OperatorApplication.findOne({
@@ -655,8 +656,7 @@ const getOperatorRevenue = async (req, res) => {
       .filter((s) => s.status === 'pending' || s.status === 'verified')
       .reduce((acc, s) => acc + (Number(s.requestedAmount) || 0), 0);
 
-    // Remaining Net Operator Balance available after pending/settled withdrawals
-    const currentNetEarnings = Math.max(0, totalLifetimeNetEarnings - totalSettledOrPending);
+    const currentNetEarnings = Math.max(0, Math.round((totalLifetimeNetEarnings - totalSettledOrPending) * 100) / 100);
 
     const settlements = settlementsDocs.map((s) => ({
       _id: String(s._id),
@@ -668,6 +668,10 @@ const getOperatorRevenue = async (req, res) => {
       requestedAmount: s.requestedAmount,
       status: s.status,
       method: s.paymentMethod,
+      recipientMobile: s.recipientMobile || '',
+      payoutProvider: s.payoutProvider || '',
+      sycapayTransactionId: s.sycapayTransactionId || '',
+      sycapayStatus: s.sycapayStatus || '',
       bankDetails: s.bankDetails,
       notes: s.notes,
     }));
@@ -699,7 +703,7 @@ const getOperatorRevenue = async (req, res) => {
 const requestPayout = async (req, res) => {
   try {
     const filter = await getOperatorFilter(req);
-    const { amount, bankDetails, notes } = req.body;
+    const { amount, bankDetails, notes, paymentMethod, recipientMobile, payoutProvider, executeCashout } = req.body;
     const requestedAmount = Number(amount);
     if (!requestedAmount || isNaN(requestedAmount) || requestedAmount <= 0) {
       return response.badReq(res, { message: 'Valid withdrawal amount is required' });
@@ -739,8 +743,10 @@ const requestPayout = async (req, res) => {
       ],
       status: { $nin: ['suspended', 'rejected'] },
     });
-    const alreadyWithdrawn = existingSettlements.reduce((acc, s) => acc + (Number(s.requestedAmount) || 0), 0);
-    const currentAvailable = Math.max(0, totalLifetimeNet - alreadyWithdrawn);
+    const alreadyWithdrawn = existingSettlements
+      .filter((s) => s.status !== 'suspended' && s.status !== 'rejected')
+      .reduce((acc, s) => acc + (Number(s.requestedAmount) || 0), 0);
+    const currentAvailable = Math.max(0, Math.round((totalLifetimeNet - alreadyWithdrawn) * 100) / 100);
 
     if (requestedAmount > currentAvailable) {
       return response.badReq(res, {
@@ -749,6 +755,39 @@ const requestPayout = async (req, res) => {
     }
 
     const settlementId = `SET-${Math.floor(10000 + Math.random() * 90000)}`;
+    const isMobileMoney = Boolean(recipientMobile || (paymentMethod && paymentMethod.toLowerCase().includes('sycapay')));
+    const finalMethod = isMobileMoney ? 'SycaPay Mobile Money' : (paymentMethod || 'Direct Bank Transfer (NEFT)');
+
+    let initialStatus = 'pending';
+    let sycapayStatus = '';
+    let sycapayTransactionId = '';
+    let sycapayResponse = null;
+
+    if (isMobileMoney && (executeCashout || process.env.SYCAPAY_AUTO_CASHOUT === 'true')) {
+      try {
+        const xofAmount = Math.max(100, Math.round(requestedAmount * 656));
+        const sycaRes = await sycapay.cashout({
+          amount: xofAmount,
+          currency: 'XOF',
+          phone: recipientMobile,
+          provider: payoutProvider || 'Orange',
+          orderId: settlementId,
+          recipientName: filter.operator || 'Operator',
+          comment: `Operator payout ${settlementId}`,
+        });
+        sycapayResponse = sycaRes;
+        if (sycaRes?.code === 0) {
+          sycapayStatus = sycaRes.status || 'pending';
+          sycapayTransactionId = sycaRes.referencetransfer || sycaRes.transactionid || '';
+          if (sycaRes.status === 'success') initialStatus = 'settled';
+        } else {
+          sycapayStatus = 'failed';
+        }
+      } catch (err) {
+        sycapayResponse = { error: err.message };
+        sycapayStatus = 'failed';
+      }
+    }
 
     const settlement = await PayoutSettlement.create({
       settlementId,
@@ -757,10 +796,15 @@ const requestPayout = async (req, res) => {
       requestedAmount,
       commissionDeducted: 0,
       netPayout: requestedAmount,
-      bankDetails: bankDetails || 'HDFC Bank (A/C: *******8492)',
+      bankDetails: isMobileMoney ? `${payoutProvider || 'Mobile Money'} (${recipientMobile})` : (bankDetails || 'HDFC Bank (A/C: *******8492)'),
       notes: notes ? String(notes).trim() : '',
-      status: 'pending',
-      paymentMethod: 'Direct Bank Transfer (NEFT)',
+      status: initialStatus,
+      paymentMethod: finalMethod,
+      recipientMobile: recipientMobile || '',
+      payoutProvider: payoutProvider || '',
+      sycapayTransactionId,
+      sycapayStatus,
+      sycapayResponse,
       period: 'Current Settlement',
       api_user: req.apiUser._id,
     });
@@ -778,6 +822,10 @@ const requestPayout = async (req, res) => {
         status: settlement.status,
         method: settlement.paymentMethod,
         bankDetails: settlement.bankDetails,
+        recipientMobile: settlement.recipientMobile,
+        payoutProvider: settlement.payoutProvider,
+        sycapayTransactionId: settlement.sycapayTransactionId,
+        sycapayStatus: settlement.sycapayStatus,
         notes: settlement.notes,
       },
     });

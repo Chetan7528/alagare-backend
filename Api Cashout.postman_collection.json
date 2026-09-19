@@ -1,0 +1,1081 @@
+{
+	"info": {
+		"_postman_id": "c9d8f076-9c59-47fc-9916-8baad3bd0024",
+		"name": "Api Cashout",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "16489931"
+	},
+	"item": [
+		{
+			"name": "authentification",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-SYCA-MERCHANDID",
+						"value": "",
+						"type": "text"
+					},
+					{
+						"key": "X-SYCA-APIKEY",
+						"value": "",
+						"type": "text"
+					},
+					{
+						"key": "X-SYCA-REQUEST-DATA-FORMAT",
+						"value": "JSON",
+						"type": "text"
+					},
+					{
+						"key": "X-SYCA-RESPONSE-DATA-FORMAT",
+						"value": "JSON",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"language\":\"fr\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://www.sycaretail.com/delivery/v1/authentification",
+					"protocol": "https",
+					"host": [
+						"www",
+						"sycaretail",
+						"com"
+					],
+					"path": [
+						"delivery",
+						"v1",
+						"authentification"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "authentification success",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-SYCA-MERCHANDID",
+								"value": "C_6530FC03095ED",
+								"type": "text"
+							},
+							{
+								"key": "X-SYCA-APIKEY",
+								"value": "pk_syca_d77fa8b3d784294a2ab0800c88a9df69c13062ee",
+								"type": "text"
+							},
+							{
+								"key": "X-SYCA-REQUEST-DATA-FORMAT",
+								"value": "JSON",
+								"type": "text"
+							},
+							{
+								"key": "X-SYCA-RESPONSE-DATA-FORMAT",
+								"value": "JSON",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"language\":\"fr\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://www.sycaretail.com/delivery/v1/authentification",
+							"protocol": "https",
+							"host": [
+								"www",
+								"sycaretail",
+								"com"
+							],
+							"path": [
+								"delivery",
+								"v1",
+								"authentification"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": null,
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx"
+						},
+						{
+							"key": "Date",
+							"value": "Fri, 05 Sep 2025 16:04:24 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json; charset=utf-8"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PHP/7.0.33"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PleskLin"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"code\": 0,\n    \"description\": \"SUCCESS\",\n    \"token\": \"33927daf9fdcfcda0614ab6bc5c4964f40774d08a65eb0575163097e5a14cc6e\"\n}"
+				},
+				{
+					"name": "authentification failed",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-SYCA-MERCHANDID",
+								"value": "C_6530FC03095EDn",
+								"type": "text"
+							},
+							{
+								"key": "X-SYCA-APIKEY",
+								"value": "pk_syca_d77fa8b3d784294a2ab0800c88a9df69c13062ee",
+								"type": "text"
+							},
+							{
+								"key": "X-SYCA-REQUEST-DATA-FORMAT",
+								"value": "JSON",
+								"type": "text"
+							},
+							{
+								"key": "X-SYCA-RESPONSE-DATA-FORMAT",
+								"value": "JSON",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"language\":\"fr\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://www.sycaretail.com/delivery/v1/authentification",
+							"protocol": "https",
+							"host": [
+								"www",
+								"sycaretail",
+								"com"
+							],
+							"path": [
+								"delivery",
+								"v1",
+								"authentification"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": null,
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx"
+						},
+						{
+							"key": "Date",
+							"value": "Fri, 05 Sep 2025 16:04:56 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json; charset=utf-8"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PHP/7.0.33"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PleskLin"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"code\": -23,\n    \"description\": \"EMPTY Probleme rencontre,Veuillez ressayer plus tard SVP,Merci\"\n}"
+				}
+			]
+		},
+		{
+			"name": "getStatusByOrderID",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "reference",
+							"value": "sqvq<v0",
+							"type": "text"
+						},
+						{
+							"key": "merchantid",
+							"value": "",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://www.sycaretail.com/delivery/v1/getStatusByOrderID.php",
+					"protocol": "https",
+					"host": [
+						"www",
+						"sycaretail",
+						"com"
+					],
+					"path": [
+						"delivery",
+						"v1",
+						"getStatusByOrderID.php"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "getStatusByOrderID - failed transaction",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "reference",
+									"value": "D24080100006572",
+									"type": "text"
+								},
+								{
+									"key": "merchantid",
+									"value": "C_662673C55A81E",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "http://www.sycaretail.com/delivery/v1/getStatusByOrderID.php",
+							"protocol": "http",
+							"host": [
+								"www",
+								"sycaretail",
+								"com"
+							],
+							"path": [
+								"delivery",
+								"v1",
+								"getStatusByOrderID.php"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": null,
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx"
+						},
+						{
+							"key": "Date",
+							"value": "Fri, 05 Sep 2025 16:05:31 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json; charset=utf-8"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PHP/7.0.33"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PleskLin"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"code\": 0,\n    \"status\": \"failed\",\n    \"datetransfer\": \"2024-08-01 14:41:56\",\n    \"service\": \"Wave Cote d Ivoire\",\n    \"montant\": \"400000\",\n    \"referenceid\": \"DS88809926080124F174156\",\n    \"transactionid\": \"pb-1qpw8bm6r203e\",\n    \"contact\": \"+2250507435030\",\n    \"orderid\": \"D24080100006572\",\n    \"details\": \"The recipient has reached their monthly limit. They can often raise their limits by verifying their identity at a Wave agent.\"\n}"
+				},
+				{
+					"name": "getStatusByOrderID - failed",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "reference",
+									"value": "DS654832990905253191357",
+									"type": "text"
+								},
+								{
+									"key": "merchantid",
+									"value": "C_5696ADED4C7FD",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "http://www.sycaretail.com/delivery/v1/getStatusByOrderID.php",
+							"protocol": "http",
+							"host": [
+								"www",
+								"sycaretail",
+								"com"
+							],
+							"path": [
+								"delivery",
+								"v1",
+								"getStatusByOrderID.php"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": null,
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx"
+						},
+						{
+							"key": "Date",
+							"value": "Fri, 05 Sep 2025 16:15:17 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json; charset=utf-8"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PHP/7.0.33"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PleskLin"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"code\": -33,\n    \"description\": \"Commande introuvable est inexistante\",\n    \"orderid\": \"DS654832990905253191357\"\n}"
+				},
+				{
+					"name": "getStatusByOrderID - failed 01",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "reference",
+									"value": "TEST05/09/25",
+									"type": "text"
+								},
+								{
+									"key": "merchantid",
+									"value": "C_5696ADED4C7FD",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "http://www.sycaretail.com/delivery/v1/getStatusByOrderID.php",
+							"protocol": "http",
+							"host": [
+								"www",
+								"sycaretail",
+								"com"
+							],
+							"path": [
+								"delivery",
+								"v1",
+								"getStatusByOrderID.php"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": null,
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx"
+						},
+						{
+							"key": "Date",
+							"value": "Fri, 05 Sep 2025 16:23:15 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json; charset=utf-8"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PHP/7.0.33"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PleskLin"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"code\": 0,\n    \"status\": \"failed\",\n    \"datetransfer\": \"2025-09-05 16:19:20\",\n    \"service\": \"Orange Cote d Ivoire\",\n    \"montant\": \"100\",\n    \"referenceid\": \"DS42586445090525X191920\",\n    \"transactionid\": \"5b26dbc9c3f33f5b08d4ff2a284028bafd50e87d\",\n    \"contact\": \"+2250749539914\",\n    \"orderid\": \"TEST05/09/25\",\n    \"details\": \"TEST COMMENT\"\n}"
+				},
+				{
+					"name": "getStatusByOrderID - success",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "reference",
+									"value": "ftupntyuf",
+									"type": "text"
+								},
+								{
+									"key": "merchantid",
+									"value": "C_5696ADED4C7FD",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "http://www.sycaretail.com/delivery/v1/getStatusByOrderID.php",
+							"protocol": "http",
+							"host": [
+								"www",
+								"sycaretail",
+								"com"
+							],
+							"path": [
+								"delivery",
+								"v1",
+								"getStatusByOrderID.php"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": null,
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx"
+						},
+						{
+							"key": "Date",
+							"value": "Fri, 05 Sep 2025 16:32:28 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json; charset=utf-8"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PHP/7.0.33"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PleskLin"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"code\": 0,\n    \"status\": \"success\",\n    \"datetransfer\": \"2025-09-05 16:29:22\",\n    \"service\": \"Wave Cote d Ivoire\",\n    \"montant\": \"100\",\n    \"referenceid\": \"DS15869465090525R192922\",\n    \"transactionid\": \"pb-1zrdh1veg2pgy\",\n    \"contact\": \"+2250749539914\",\n    \"orderid\": \"ftupntyuf\",\n    \"details\": \"DEPOT EFFECTUE AVEC SUCCESS\"\n}"
+				}
+			]
+		},
+		{
+			"name": "checktransfer",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-SYCA-MERCHANDID",
+						"value": "",
+						"type": "text"
+					},
+					{
+						"key": "TOKEN",
+						"value": "a313233f9b313a65da2ba6177d13c35c6379833c9fccdc1ba7c125f6dd8367f1",
+						"type": "text"
+					},
+					{
+						"key": "AUTHORIZATION",
+						"value": "3bdbd5b1c6faab91384346b3df107bf48d2ee13c75b436c592d3e56c75ae9969",
+						"type": "text"
+					},
+					{
+						"key": "X-SYCA-REQUEST-DATA-FORMAT",
+						"value": "JSON",
+						"type": "text"
+					},
+					{
+						"key": "X-SYCA-RESPONSE-DATA-FORMAT",
+						"value": "JSON",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n\"orderid\":\"sqvq<v0\",\r\n\"typetransfer\":\"1\",\r\n\"orderparty\":\"sycatransf\",\r\n\"connectuser\":\"titi\",\r\n\"connecteduser\":\"entreprise\",\r\n\"recipientident\":\"personne\",\r\n\"amount\":\"100\",\r\n\"currency\":\"XOF\",\r\n\"language\":\"FR\",\r\n\"urlcancel\":\"\",\r\n\"urlsuccess\":\"\",\r\n\"recipientmobile\":\"+2250700000000\",\r\n\"provider\":\"Orange\",\r\n\"commentaire\":\"TEST\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://www.sycaretail.com/delivery/v1/checktransferezk.php",
+					"protocol": "https",
+					"host": [
+						"www",
+						"sycaretail",
+						"com"
+					],
+					"path": [
+						"delivery",
+						"v1",
+						"checktransferezk.php"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "checktransfer - failed",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-SYCA-MERCHANDID",
+								"value": "C_5696ADED4C7FD",
+								"type": "text"
+							},
+							{
+								"key": "TOKEN",
+								"value": "00db5642449d508bce2009f5dca755c9142a5bebf6ca58bcc87c32fa1754df90",
+								"type": "text"
+							},
+							{
+								"key": "AUTHORIZATION",
+								"value": "dc1fc307d87fa277c072738d5d62b308c67bfe82b9e93ccf7fdc542d203e25aa",
+								"type": "text"
+							},
+							{
+								"key": "X-SYCA-REQUEST-DATA-FORMAT",
+								"value": "JSON",
+								"type": "text"
+							},
+							{
+								"key": "X-SYCA-RESPONSE-DATA-FORMAT",
+								"value": "JSON",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n\"orderid\":\"GRSE25N\",\r\n\"typetransfer\":\"1\",\r\n\"orderparty\":\"sycatransf\",\r\n\"connectuser\":\"titi\",\r\n\"connecteduser\":\"entreprise\",\r\n\"recipientident\":\"personne\",\r\n\"amount\":\"10\",\r\n\"currency\":\"XOF\",\r\n\"language\":\"FR\",\r\n\"urlcancel\":\"http://testapi_normal.test/test.php\",\r\n\"urlsuccess\":\"http://testapi_normal.test/test.php\",\r\n\"recipientmobile\":\"+2250700000000\",\r\n\"provider\":\"Orange\",\r\n\"commentaire\":\"TEST COMMENT\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://www.sycaretail.com/delivery/v1/checktransfer",
+							"protocol": "http",
+							"host": [
+								"www",
+								"sycaretail",
+								"com"
+							],
+							"path": [
+								"delivery",
+								"v1",
+								"checktransfer"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": null,
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx"
+						},
+						{
+							"key": "Date",
+							"value": "Fri, 05 Sep 2025 16:08:10 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json; charset=utf-8"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PHP/7.0.33"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PleskLin"
+						},
+						{
+							"key": "Vary",
+							"value": "Authorization"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"code\": -19,\n    \"status\": \"failed\",\n    \"description\": \"TOKEN EST  INCORRECT\"\n}"
+				},
+				{
+					"name": "checktransfer - failed 02",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-SYCA-MERCHANDID",
+								"value": "C_5696ADED4C7FD",
+								"type": "text"
+							},
+							{
+								"key": "TOKEN",
+								"value": "138395cff25458d26f01b02b9477617c481bcdf5132ad1aaa6f51056ba49afe5",
+								"type": "text"
+							},
+							{
+								"key": "AUTHORIZATION",
+								"value": "dc1fc307d87fa277c072738d5d62b308c67bfe82b9e93ccf7fdc542d203e25aa",
+								"type": "text"
+							},
+							{
+								"key": "X-SYCA-REQUEST-DATA-FORMAT",
+								"value": "JSON",
+								"type": "text"
+							},
+							{
+								"key": "X-SYCA-RESPONSE-DATA-FORMAT",
+								"value": "JSON",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n\"orderid\":\"GRSE25N\",\r\n\"typetransfer\":\"1\",\r\n\"orderparty\":\"sycatransf\",\r\n\"connectuser\":\"titi\",\r\n\"connecteduser\":\"entreprise\",\r\n\"recipientident\":\"personne\",\r\n\"amount\":\"10\",\r\n\"currency\":\"XOF\",\r\n\"language\":\"FR\",\r\n\"urlcancel\":\"http://testapi_normal.test/test.php\",\r\n\"urlsuccess\":\"http://testapi_normal.test/test.php\",\r\n\"recipientmobile\":\"+2250700000000\",\r\n\"provider\":\"Orange\",\r\n\"commentaire\":\"TEST COMMENT\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://www.sycaretail.com/delivery/v1/checktransfer",
+							"protocol": "http",
+							"host": [
+								"www",
+								"sycaretail",
+								"com"
+							],
+							"path": [
+								"delivery",
+								"v1",
+								"checktransfer"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": null,
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx"
+						},
+						{
+							"key": "Date",
+							"value": "Fri, 05 Sep 2025 16:10:35 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json; charset=utf-8"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PHP/7.0.33"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PleskLin"
+						},
+						{
+							"key": "Vary",
+							"value": "Authorization"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"code\": -22,\n    \"description\": \"LES DONNEES NE SONT PAS AUTHENTIQUES\"\n}"
+				},
+				{
+					"name": "checktransfer - success",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-SYCA-MERCHANDID",
+								"value": "C_5696ADED4C7FD",
+								"type": "text"
+							},
+							{
+								"key": "TOKEN",
+								"value": "dfa5bac055d07e433de8db1314ba55eb1e1a1dc3ce38bc8ee606f2eaae4e19d8",
+								"type": "text"
+							},
+							{
+								"key": "AUTHORIZATION",
+								"value": "3bdbd5b1c6faab91384346b3df107bf48d2ee13c75b436c592d3e56c75ae9969",
+								"type": "text"
+							},
+							{
+								"key": "X-SYCA-REQUEST-DATA-FORMAT",
+								"value": "JSON",
+								"type": "text"
+							},
+							{
+								"key": "X-SYCA-RESPONSE-DATA-FORMAT",
+								"value": "JSON",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n\"orderid\":\"GRSE25N\",\r\n\"typetransfer\":\"1\",\r\n\"orderparty\":\"sycatransf\",\r\n\"connectuser\":\"titi\",\r\n\"connecteduser\":\"entreprise\",\r\n\"recipientident\":\"personne\",\r\n\"amount\":\"100\",\r\n\"currency\":\"XOF\",\r\n\"language\":\"FR\",\r\n\"urlcancel\":\"http://testapi_normal.test/test.php\",\r\n\"urlsuccess\":\"http://testapi_normal.test/test.php\",\r\n\"recipientmobile\":\"+2250749539914\",\r\n\"provider\":\"Orange\",\r\n\"commentaire\":\"TEST COMMENT\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://www.sycaretail.com/delivery/v1/checktransfer",
+							"protocol": "http",
+							"host": [
+								"www",
+								"sycaretail",
+								"com"
+							],
+							"path": [
+								"delivery",
+								"v1",
+								"checktransfer"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": null,
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx"
+						},
+						{
+							"key": "Date",
+							"value": "Fri, 05 Sep 2025 16:13:59 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json; charset=utf-8"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PHP/7.0.33"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PleskLin"
+						},
+						{
+							"key": "Vary",
+							"value": "Authorization"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"code\": 0,\n    \"status\": \"pending\",\n    \"description\": \"TRAITEMENT EN COURS\",\n    \"amount\": 100,\n    \"currency\": \"F CFA\",\n    \"referencetransfer\": \"DS654832990905253191357\",\n    \"orderID\": \"GRSE25N\"\n}"
+				}
+			]
+		},
+		{
+			"name": "checktransferwave",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-SYCA-MERCHANDID",
+						"value": "",
+						"type": "text"
+					},
+					{
+						"key": "TOKEN",
+						"value": "7e40537541069b0c554aaf18f5fd99405754d0644bdb9c321078081ff72b6138",
+						"type": "text"
+					},
+					{
+						"key": "AUTHORIZATION",
+						"value": "3bdbd5b1c6faab91384346b3df107bf48d2ee13c75b436c592d3e56c75ae9969",
+						"type": "text"
+					},
+					{
+						"key": "X-SYCA-REQUEST-DATA-FORMAT",
+						"value": "JSON",
+						"type": "text"
+					},
+					{
+						"key": "X-SYCA-RESPONSE-DATA-FORMAT",
+						"value": "JSON",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n\"orderid\":\"ftupntyuf\",\r\n\"typetransfer\":\"1\",\r\n\"orderparty\":\"sycatransf\",\r\n\"connectuser\":\"titi\",\r\n\"connecteduser\":\"entreprise\",\r\n\"recipientident\":\"personne\",\r\n\"amount\":\"100\",\r\n\"currency\":\"XOF\",\r\n\"language\":\"FR\",\r\n\"urlcancel\":\"\",\r\n\"urlsuccess\":\"\",\r\n\"recipientmobile\":\"+2250700000000\",\r\n\"provider\":\"Wave\",\r\n\"commentaire\":\"TEST COMMENT\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://www.sycaretail.com/delivery/v1/checktransferwave",
+					"protocol": "http",
+					"host": [
+						"www",
+						"sycaretail",
+						"com"
+					],
+					"path": [
+						"delivery",
+						"v1",
+						"checktransferwave"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "checktransferwave - success",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-SYCA-MERCHANDID",
+								"value": "C_5696ADED4C7FD",
+								"type": "text"
+							},
+							{
+								"key": "TOKEN",
+								"value": "7e40537541069b0c554aaf18f5fd99405754d0644bdb9c321078081ff72b6138",
+								"type": "text"
+							},
+							{
+								"key": "AUTHORIZATION",
+								"value": "3bdbd5b1c6faab91384346b3df107bf48d2ee13c75b436c592d3e56c75ae9969",
+								"type": "text"
+							},
+							{
+								"key": "X-SYCA-REQUEST-DATA-FORMAT",
+								"value": "JSON",
+								"type": "text"
+							},
+							{
+								"key": "X-SYCA-RESPONSE-DATA-FORMAT",
+								"value": "JSON",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n\"orderid\":\"ftupntyuf\",\r\n\"typetransfer\":\"1\",\r\n\"orderparty\":\"sycatransf\",\r\n\"connectuser\":\"titi\",\r\n\"connecteduser\":\"entreprise\",\r\n\"recipientident\":\"personne\",\r\n\"amount\":\"100\",\r\n\"currency\":\"XOF\",\r\n\"language\":\"FR\",\r\n\"urlcancel\":\"http://testapi_normal.test/test.php\",\r\n\"urlsuccess\":\"http://testapi_normal.test/test.php\",\r\n\"recipientmobile\":\"+2250749539914\",\r\n\"provider\":\"Wave\",\r\n\"commentaire\":\"TEST COMMENT\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://www.sycaretail.com/delivery/v1/checktransferwave",
+							"protocol": "http",
+							"host": [
+								"www",
+								"sycaretail",
+								"com"
+							],
+							"path": [
+								"delivery",
+								"v1",
+								"checktransferwave"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": null,
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx"
+						},
+						{
+							"key": "Date",
+							"value": "Fri, 05 Sep 2025 16:29:27 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json; charset=utf-8"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PHP/7.0.33"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PleskLin"
+						},
+						{
+							"key": "Vary",
+							"value": "Authorization"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"code\": 0,\n    \"status\": \"success\",\n    \"description\": \"DEPOT EFFECTUE AVEC SUCCESS\",\n    \"amount\": \"100\",\n    \"currency\": \"F CFA\",\n    \"referencetransfer\": \"DS15869465090525R192922\",\n    \"orderID\": \"ftupntyuf\",\n    \"destinataire\": \"personne\",\n    \"provider\": \"Wave\"\n}"
+				}
+			]
+		},
+		{
+			"name": "soldeTransfert",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-Syca-Merchandid",
+						"value": "",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "http://www.sycaretail.com/delivery/v1/checkcashoutsolde.php",
+					"protocol": "http",
+					"host": [
+						"www",
+						"sycaretail",
+						"com"
+					],
+					"path": [
+						"delivery",
+						"v1",
+						"checkcashoutsolde.php"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

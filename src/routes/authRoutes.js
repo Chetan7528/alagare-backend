@@ -20,6 +20,7 @@ const {
   getUserById,
   deleteUser,
   blockUser,
+  validateReferral,
 } = require('@controllers/authController');
 const auth = require('@middlewares/authMiddleware');
 const { upload } = require('@services/fileUpload');
@@ -28,6 +29,7 @@ const busController = require('@controllers/busController');
 // Public (still need X-API-Key from global middleware)
 router.post('/register', register);
 router.post('/verify-register', verifyRegister);
+router.post('/validate-referral', validateReferral);
 router.post('/login', login);
 router.post('/verify-login', verifyLogin);
 router.post('/send-otp', sendOTP);
@@ -57,6 +59,9 @@ router.post('/buses/apply-coupon', auth(), busController.applyCoupon);
 const paymentController = require('@controllers/paymentController');
 router.post('/payments/create-intent', auth(), paymentController.createPaymentIntent);
 router.post('/payments/verify', auth(), paymentController.verifyPayment);
+router.post('/payments/sycapay/checkout', auth(), paymentController.sycapayCheckout);
+router.post('/payments/sycapay/status', auth(), paymentController.sycapayStatus);
+router.post('/payments/sycapay/webhook', paymentController.sycapayWebhook);
 
 const inquiryController = require('@controllers/inquiryController');
 router.post('/inquiries', auth(), inquiryController.createInquiry);

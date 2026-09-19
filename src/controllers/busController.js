@@ -659,24 +659,11 @@ module.exports = {
               });
             }
           } else {
-            const friend = await User.findOne({ referralCode: cleanPromo });
-            if (friend) {
-              const currentUser = await User.findById(req.user?._id);
-              const isLinkedReferral = currentUser?.referredBy && currentUser.referredBy.toString() === friend._id.toString();
-              if (!isLinkedReferral) {
-                return response.badReq(res, {
-                  message: 'Referral codes must be applied during Sign Up. You are not linked to this referral code.',
-                });
-              }
-              const prior = await Booking.findOne({
-                ...userBookingFilter(req),
-                status: { $in: ['confirmed', 'pending'] },
+            const isReferralCode = await User.findOne({ referralCode: cleanPromo, isDeleted: { $ne: true } });
+            if (isReferralCode) {
+              return response.badReq(res, {
+                message: 'Referral codes can only be used during Sign Up. Please enter a valid coupon code.',
               });
-              if (prior) {
-                return response.badReq(res, {
-                  message: 'Referral discount is only valid on your first booking.',
-                });
-              }
             }
           }
         }
@@ -767,12 +754,11 @@ module.exports = {
         api_user: req.apiUser._id,
       });
 
-      // Deduct travel credit if referral code or travel credit was used
+      // Deduct travel credit if travel credit code was used
       if (promoCode && Number(discountAmount) > 0 && req.user?._id) {
         const cleanPromo = String(promoCode).trim().toUpperCase();
-        const isCreditCode = cleanPromo === 'TRAVELCREDIT' || cleanPromo === 'CREDIT' || cleanPromo === 'REFERRAL';
-        const friend = await User.findOne({ referralCode: cleanPromo });
-        if (isCreditCode || friend) {
+        const isCreditCode = cleanPromo === 'TRAVELCREDIT' || cleanPromo === 'CREDIT';
+        if (isCreditCode) {
           const u = await User.findById(req.user._id);
           if (u && (u.travelCredit || 0) > 0) {
             u.travelCredit = Math.max(0, (u.travelCredit || 0) - Number(discountAmount));
@@ -993,54 +979,19 @@ module.exports = {
         });
       }
 
-      // 3. Check Friend Referral Code
-      const friend = await User.findOne({
+      // 3. Referral code check (Referral codes cannot be used as promo / coupon codes at checkout)
+      const isReferralCode = await User.findOne({
         referralCode: promoCode,
+        isDeleted: { $ne: true },
       });
-      if (friend) {
-        if (friend._id.toString() === req.user?._id?.toString()) {
-          return response.badReq(res, { message: 'You cannot use your own referral code at checkout.' });
-        }
-
-        // Referral codes can only be redeemed by the user who registered using this code
-        const currentUser = await User.findById(req.user?._id);
-        const isLinkedReferral = currentUser?.referredBy && currentUser.referredBy.toString() === friend._id.toString();
-
-        if (!isLinkedReferral) {
-          return response.badReq(res, {
-            message: 'Referral codes must be applied during Sign Up. You are not linked to this referral code.',
-          });
-        }
-
-        const alreadyTravelled = await hasPriorConfirmedTrips();
-        if (alreadyTravelled) {
-          return response.badReq(res, {
-            message: 'Referral discount is only valid on your first booking.',
-          });
-        }
-
-        const availableCredit = currentUser?.travelCredit || 0;
-        if (availableCredit <= 0) {
-          return response.badReq(res, {
-            message: 'Your €10 referral travel credit has already been used.',
-          });
-        }
-
-        const discount = Math.min(10, Math.min(amount, availableCredit));
-        const finalAmount = Math.max(0, Math.round((amount - discount) * 100) / 100);
-
-        return response.ok(res, {
-          message: `Referral travel credit from ${friend.fullname} applied (€${discount})!`,
-          code: promoCode,
-          title: `Referral Credit (€${discount})`,
-          discount,
-          isReferralCredit: true,
-          finalAmount,
+      if (isReferralCode) {
+        return response.badReq(res, {
+          message: 'Referral codes can only be used during Sign Up. Please enter a valid coupon code.',
         });
       }
 
-      // 4. Check TRAVELCREDIT / CREDIT / REFERRAL (Allow users to redeem their earned travel credit balance)
-      if (promoCode === 'TRAVELCREDIT' || promoCode === 'CREDIT' || promoCode === 'REFERRAL') {
+      // 4. Check TRAVELCREDIT / CREDIT (Allow users to redeem their earned travel credit balance)
+      if (promoCode === 'TRAVELCREDIT' || promoCode === 'CREDIT') {
         const currentUser = await User.findById(req.user?._id);
         const availableCredit = currentUser?.travelCredit || 0;
         if (availableCredit <= 0) {
@@ -1062,7 +1013,7 @@ module.exports = {
         });
       }
 
-      return response.badReq(res, { message: 'Invalid or expired promo code' });
+      return response.badReq(res, { message: 'Invalid or expired coupon code' });
     } catch (error) {
       return response.error(res, error);
     }

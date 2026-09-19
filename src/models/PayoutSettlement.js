@@ -13,6 +13,12 @@ const payoutSettlementSchema = new mongoose.Schema(
     notes: { type: String, default: '' },
     period: { type: String, default: 'Current Settlement' },
     paymentMethod: { type: String, default: 'Direct Bank Transfer (NEFT)' },
+    recipientMobile: { type: String, default: '' },
+    payoutProvider: { type: String, default: '' },
+    sycapayTransactionId: { type: String, default: '' },
+    sycapayReference: { type: String, default: '' },
+    sycapayStatus: { type: String, default: '' },
+    sycapayResponse: { type: mongoose.Schema.Types.Mixed },
     status: {
       type: String,
       enum: ['pending', 'verified', 'settled', 'suspended', 'rejected'],

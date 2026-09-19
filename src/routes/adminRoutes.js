@@ -55,6 +55,7 @@ const {
   deleteBusType,
   listSettlements,
   updateSettlementStatus,
+  executeSettlementCashout,
 } = require('@controllers/adminMasterController');
 
 router.get('/dashboard', auth('admin'), getDashboard);
@@ -87,6 +88,7 @@ router.delete('/bus-types/:id', auth('admin'), deleteBusType);
 
 router.get('/settlements', auth('admin'), listSettlements);
 router.put('/settlements/:id/status', auth('admin'), updateSettlementStatus);
+router.post('/settlements/:id/cashout', auth('admin'), executeSettlementCashout);
 
 const {
   getContent,

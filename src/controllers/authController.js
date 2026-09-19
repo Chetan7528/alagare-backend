@@ -39,7 +39,26 @@ module.exports = {
         if (exists.isVerified) {
           return response.badReq(res, { message: 'Phone already registered and verified' });
         }
-        // If exists but not verified, we can resend OTP (handled below by updating user and sending OTP)
+      }
+
+      let validAppliedReferral = undefined;
+      if (referralCode && typeof referralCode === 'string' && referralCode.trim().length > 0) {
+        const normalizedReferral = referralCode.trim().toUpperCase();
+        const Campaign = require('@models/Campaign');
+        const [referrerUser, activeCampaign] = await Promise.all([
+          User.findOne({ referralCode: normalizedReferral, isDeleted: { $ne: true } }),
+          Campaign.findOne({ code: normalizedReferral, status: 'active' }),
+        ]);
+
+        if (!referrerUser && !activeCampaign) {
+          return response.badReq(res, { message: 'Invalid referral code. Please enter a valid code or leave it blank.' });
+        }
+
+        if (referrerUser && exists && String(referrerUser._id) === String(exists._id)) {
+          return response.badReq(res, { message: 'You cannot use your own referral code.' });
+        }
+
+        validAppliedReferral = normalizedReferral;
       }
 
       let hashed = null;
@@ -74,7 +93,7 @@ module.exports = {
       await Verification.create({
         user: phone,
         otp,
-        appliedReferralCode: referralCode ? String(referralCode).trim().toUpperCase() : undefined,
+        appliedReferralCode: validAppliedReferral,
         expiration_at: new Date(Date.now() + 5 * 60 * 1000),
       });
 
@@ -663,6 +682,39 @@ module.exports = {
       return response.ok(res, {
         message: `User ${isBlocked ? 'blocked' : 'unblocked'} successfully`,
         data: user,
+      });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  validateReferral: async (req, res) => {
+    try {
+      const { referralCode, code } = req.body;
+      const targetCode = referralCode || code;
+      if (!targetCode || !String(targetCode).trim()) {
+        return response.badReq(res, { message: 'Referral code is required' });
+      }
+
+      const normalizedCode = String(targetCode).trim().toUpperCase();
+      const Campaign = require('@models/Campaign');
+      const [referrerUser, activeCampaign] = await Promise.all([
+        User.findOne({ referralCode: normalizedCode, isDeleted: { $ne: true } }),
+        Campaign.findOne({ code: normalizedCode, status: 'active' }),
+      ]);
+
+      if (!referrerUser && !activeCampaign) {
+        return response.badReq(res, { message: 'Invalid referral code. Please check and try again.' });
+      }
+
+      return response.ok(res, {
+        message: 'Valid referral code',
+        valid: true,
+        data: {
+          code: normalizedCode,
+          type: referrerUser ? 'user' : 'campaign',
+          name: referrerUser ? referrerUser.fullname : activeCampaign.title,
+        },
       });
     } catch (error) {
       return response.error(res, error);

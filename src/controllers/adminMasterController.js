@@ -3,6 +3,7 @@ const City = require('@models/City');
 const BusType = require('@models/BusType');
 const PayoutSettlement = require('@models/PayoutSettlement');
 const response = require('@responses');
+const sycapay = require('@services/sycapayService');
 
 const tenantFilter = (req) => ({ api_user: req.apiUser._id });
 
@@ -211,19 +212,96 @@ module.exports = {
   updateSettlementStatus: async (req, res) => {
     try {
       const { id } = req.params;
-      const { status } = req.body;
+      const { status, executeCashout } = req.body;
       if (!['pending', 'verified', 'settled', 'suspended', 'rejected'].includes(status)) {
         return response.badReq(res, { message: 'Invalid status' });
       }
 
-      const settlement = await PayoutSettlement.findOneAndUpdate(
-        { _id: id, ...tenantFilter(req) },
-        { status },
-        { new: true }
-      );
-
+      const settlement = await PayoutSettlement.findOne({ _id: id, ...tenantFilter(req) });
       if (!settlement) return response.notFound(res, { message: 'Settlement request not found' });
+
+      if (executeCashout || (status === 'settled' && settlement.recipientMobile && !settlement.sycapayTransactionId)) {
+        try {
+          const xofAmount = Math.max(100, Math.round((settlement.netPayout || settlement.requestedAmount) * 656));
+          const sycaRes = await sycapay.cashout({
+            amount: xofAmount,
+            currency: 'XOF',
+            phone: settlement.recipientMobile,
+            provider: settlement.payoutProvider || 'Orange',
+            orderId: settlement.settlementId,
+            recipientName: settlement.operator || 'Operator',
+            comment: `Operator payout settlement ${settlement.settlementId}`,
+          });
+
+          settlement.sycapayResponse = sycaRes;
+          if (sycaRes?.code === 0) {
+            settlement.sycapayStatus = sycaRes.status || 'pending';
+            settlement.sycapayTransactionId = sycaRes.referencetransfer || sycaRes.transactionid || '';
+          } else {
+            settlement.sycapayStatus = 'failed';
+          }
+        } catch (err) {
+          settlement.sycapayResponse = { error: err.message };
+          settlement.sycapayStatus = 'failed';
+        }
+      }
+
+      settlement.status = status;
+      await settlement.save();
+
       return response.ok(res, { message: 'Settlement status updated', settlement });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  executeSettlementCashout: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { phone, provider } = req.body;
+
+      const settlement = await PayoutSettlement.findOne({ _id: id, ...tenantFilter(req) });
+      if (!settlement) return response.notFound(res, { message: 'Settlement request not found' });
+
+      const targetPhone = phone || settlement.recipientMobile;
+      if (!targetPhone) {
+        return response.badReq(res, { message: 'Recipient mobile number is required for SycaPay cashout' });
+      }
+
+      const targetProvider = provider || settlement.payoutProvider || 'Orange';
+      const xofAmount = Math.max(100, Math.round((settlement.netPayout || settlement.requestedAmount) * 656));
+
+      const sycaRes = await sycapay.cashout({
+        amount: xofAmount,
+        currency: 'XOF',
+        phone: targetPhone,
+        provider: targetProvider,
+        orderId: settlement.settlementId,
+        recipientName: settlement.operator || 'Operator',
+        comment: `Manual cashout for settlement ${settlement.settlementId}`,
+      });
+
+      settlement.sycapayResponse = sycaRes;
+      settlement.recipientMobile = targetPhone;
+      settlement.payoutProvider = targetProvider;
+
+      if (sycaRes?.code === 0) {
+        settlement.sycapayStatus = sycaRes.status || 'pending';
+        settlement.sycapayTransactionId = sycaRes.referencetransfer || sycaRes.transactionid || '';
+        if (sycaRes.status === 'success') {
+          settlement.status = 'settled';
+        }
+      } else {
+        settlement.sycapayStatus = 'failed';
+      }
+
+      await settlement.save();
+
+      return response.ok(res, {
+        message: sycaRes?.code === 0 ? 'SycaPay cashout executed successfully' : 'SycaPay cashout attempt recorded',
+        settlement,
+        sycapay: sycaRes,
+      });
     } catch (error) {
       return response.error(res, error);
     }

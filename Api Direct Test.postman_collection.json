@@ -1,0 +1,393 @@
+{
+	"info": {
+		"_postman_id": "66139030-c802-44ec-af84-76e37257fb01",
+		"name": "Api Direct Test",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "16489931"
+	},
+	"item": [
+		{
+			"name": "login",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-SYCA-MERCHANDID",
+						"value": ""
+					},
+					{
+						"key": "X-SYCA-APIKEY",
+						"value": ""
+					},
+					{
+						"key": "X-SYCA-REQUEST-DATA-FORMAT",
+						"value": "JSON"
+					},
+					{
+						"key": "X-SYCA-RESPONSE-DATA-FORMAT",
+						"value": "JSON"
+					}
+				],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "montant",
+							"value": "100",
+							"type": "text"
+						},
+						{
+							"key": "currency",
+							"value": "XOF",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://dev.sycapay.net/api/login.php",
+					"protocol": "https",
+					"host": [
+						"dev",
+						"sycapay",
+						"net"
+					],
+					"path": [
+						"api",
+						"login.php"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetStatus",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "ref",
+							"value": "xxxxxxx",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://dev.sycapay.net/api/GetStatus.php",
+					"protocol": "https",
+					"host": [
+						"dev",
+						"sycapay",
+						"net"
+					],
+					"path": [
+						"api",
+						"GetStatus.php"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "MoovSuccess",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"marchandid\":\"\",\n  \"token\":\"91e27e5076a7faf5b61ccaa5a873f57378afea44d7547814b98913ffa62903ae\",\n  \"telephone\":\"0102000001\",\n  \"name\":\"name\",\n  \"pname\":\"pname\",\n  \"urlnotif\":\"\",\n  \"montant\":\"100\",\n  \"currency\":\"XOF\",\n  \"numcommande\":\"testmoovsuccess\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://dev.sycapay.net/api/checkoutpay.php",
+					"protocol": "https",
+					"host": [
+						"dev",
+						"sycapay",
+						"net"
+					],
+					"path": [
+						"api",
+						"checkoutpay.php"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "MoovFailure",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"marchandid\":\"\",\n  \"token\":\"93a48147e8017ed7afa26ab35125c2c76042048fc84b1a9e11648bdfa87c8899\",\n  \"telephone\":\"0102000010\",\n  \"name\":\"name\",\n  \"pname\":\"pname\",\n  \"urlnotif\":\"\",\n  \"montant\":\"100\",\n  \"currency\":\"XOF\",\n  \"numcommande\":\"Testmoovfail\"\n\n\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://dev.sycapay.net/api/checkoutpay.php",
+					"protocol": "https",
+					"host": [
+						"dev",
+						"sycapay",
+						"net"
+					],
+					"path": [
+						"api",
+						"checkoutpay.php"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "MoovWaiting",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"marchandid\":\"\",\n  \"token\":\"d0d35ee711236206d1c0d06bdf445a02d0951a1e595d28570d30df5cdfb3b3e8\",\n  \"telephone\":\"0102000200\",\n  \"name\":\"name\",\n  \"pname\":\"pname\",\n  \"urlnotif\":\"\",\n  \"montant\":\"100\",\n  \"currency\":\"XOF\",\n  \"numcommande\":\"testmoovatt\"\n \n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://dev.sycapay.net/api/checkoutpay.php",
+					"protocol": "https",
+					"host": [
+						"dev",
+						"sycapay",
+						"net"
+					],
+					"path": [
+						"api",
+						"checkoutpay.php"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "OrangeSuccess",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"marchandid\":\"\",\n  \"token\":\"a7026c513dba47bd14900c2bbd6f8b3a2ccea5cff68b54210a3cfba9aaf49135\",\n  \"telephone\":\"0709000001\",\n  \"name\":\"name\",\n  \"pname\":\"pname\",\n  \"urlnotif\":\"\",\n  \"montant\":\"100\",\n  \"currency\":\"XOF\",\n  \"numcommande\":\"testorangesuccess\",\n  \"otp\":\"7908\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://dev.sycapay.net/api/checkoutpay.php",
+					"protocol": "https",
+					"host": [
+						"dev",
+						"sycapay",
+						"net"
+					],
+					"path": [
+						"api",
+						"checkoutpay.php"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "OrangeWaiting",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"marchandid\":\"\",\n  \"token\":\"d522c23296f9baedc81eb64b6962919ade0c98d865362246814cb91c38e56d36\",\n  \"telephone\":\"0709000210\",\n  \"name\":\"name\",\n  \"pname\":\"pname\",\n  \"urlnotif\":\"\",\n  \"montant\":\"100\",\n  \"currency\":\"XOF\",\n  \"numcommande\":\"testorangeatt\",\n  \"otp\":\"7908\"\n\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://dev.sycapay.net/api/checkoutpay.php",
+					"protocol": "https",
+					"host": [
+						"dev",
+						"sycapay",
+						"net"
+					],
+					"path": [
+						"api",
+						"checkoutpay.php"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "OrangeFailure",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"marchandid\":\"\",\n  \"token\":\"24e906e7cf0edf6c517bb3868cb9bf8b1e60e411d6701c945cb70fb79f305c2c\",\n  \"telephone\":\"0709000010\",\n  \"name\":\"name\",\n  \"pname\":\"pname\",\n  \"urlnotif\":\"\",\n  \"montant\":\"100\",\n  \"currency\":\"XOF\",\n  \"numcommande\":\"testorangefail\",\n  \"otp\":\"7908\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://dev.sycapay.net/api/checkoutpay.php",
+					"protocol": "https",
+					"host": [
+						"dev",
+						"sycapay",
+						"net"
+					],
+					"path": [
+						"api",
+						"checkoutpay.php"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "MtnSuccess",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"marchandid\": \"\",\n    \"token\": \"15c6c5327ce3924647d4cc637a0b5a7d350157462e08267e748c5d841f86e6e0\",\n    \"telephone\": \"0505000001\",\n    \"name\":\"name\",\n  \"pname\":\"pname\",\n  \"urlnotif\":\"\",\n  \"montant\":\"100\",\n  \"currency\":\"XOF\",\n  \"numcommande\":\"testmtnsuccess\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://dev.sycapay.net/api/checkoutpay.php",
+					"protocol": "https",
+					"host": [
+						"dev",
+						"sycapay",
+						"net"
+					],
+					"path": [
+						"api",
+						"checkoutpay.php"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "MtnWaiting",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"marchandid\":\"\",\n  \"token\":\"0117824cd0ec0bdf3350008ac87bcd8ddd08f5a05a1c160a252b03650d2aac2d\",\n  \"telephone\":\"0505000200\",\n  \"name\":\"name\",\n  \"pname\":\"pname\",\n  \"urlnotif\":\"\",\n  \"montant\":\"100\",\n  \"currency\":\"XOF\",\n  \"numcommande\":\"testmtnatt\"\n\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://dev.sycapay.net/api/checkoutpay.php",
+					"protocol": "https",
+					"host": [
+						"dev",
+						"sycapay",
+						"net"
+					],
+					"path": [
+						"api",
+						"checkoutpay.php"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "MtnFailure",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"marchandid\":\"\",\n  \"token\":\"0a3dae9cf0bb03a3e8046fd299b2dad32615cf85c4a8e26a4105804c35780b73\",\n  \"telephone\":\"0505000010\",\n  \"name\":\"name\",\n  \"pname\":\"pname\",\n  \"urlnotif\":\"\",\n  \"montant\":\"100\",\n  \"currency\":\"XOF\",\n  \"numcommande\":\"testmtnfail\"\n}\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://dev.sycapay.net/api/checkoutpay.php",
+					"protocol": "https",
+					"host": [
+						"dev",
+						"sycapay",
+						"net"
+					],
+					"path": [
+						"api",
+						"checkoutpay.php"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Wave",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{ \r\n   // AVAILABLE ONLY IN PRODUCTION\r\n\r\n   \"marchandid\":\"\",\r\n   \"token\":\"8b0f072fdf2b056f220574b35918083853ba1d3b47cea1cb68995ff769b32b1a\",\r\n   \"telephone\":\"00000\",\r\n   \"name\":\"name\",\r\n   \"pname\":\"pname\",\r\n   \"urlnotif\":\"\",\r\n  \"montant\":\"100\",\r\n  \"currency\":\"XOF\",\r\n  \"numcommande\":\"dxed48\",\r\n   \"pays\" : \"CI\",\r\n   \"operateurs\" : \"WaveSN\"\r\n \r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://dev.sycapay.com/checkoutpay.php",
+					"protocol": "https",
+					"host": [
+						"dev",
+						"sycapay",
+						"com"
+					],
+					"path": [
+						"checkoutpay.php"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
