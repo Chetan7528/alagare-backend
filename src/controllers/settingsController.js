@@ -21,6 +21,10 @@ const toPayload = (doc) => ({
   notifyBookings: !!doc.notifyBookings,
   notifyUsers: !!doc.notifyUsers,
   maintenanceMode: !!doc.maintenanceMode,
+  maintenanceTitleEn: doc.maintenanceTitleEn || 'Under Maintenance',
+  maintenanceMessageEn: doc.maintenanceMessageEn || "Alagare is currently undergoing scheduled maintenance. We'll be back shortly!",
+  maintenanceTitleFr: doc.maintenanceTitleFr || 'Maintenance en cours',
+  maintenanceMessageFr: doc.maintenanceMessageFr || 'Alagare est actuellement en maintenance planifiée. Nous serons bientôt de retour !',
   updatedAt: doc.updatedAt,
 });
 
@@ -60,6 +64,27 @@ module.exports = {
           taxRate: doc.taxRate != null ? Number(doc.taxRate) : 0,
           serviceFee: doc.serviceFee != null ? Number(doc.serviceFee) : 0,
           maintenanceMode: !!doc.maintenanceMode,
+          maintenanceTitleEn: doc.maintenanceTitleEn || 'Under Maintenance',
+          maintenanceMessageEn: doc.maintenanceMessageEn || "Alagare is currently undergoing scheduled maintenance. We'll be back shortly!",
+          maintenanceTitleFr: doc.maintenanceTitleFr || 'Maintenance en cours',
+          maintenanceMessageFr: doc.maintenanceMessageFr || 'Alagare est actuellement en maintenance planifiée. Nous serons bientôt de retour !',
+        },
+      });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  getMaintenanceStatus: async (req, res) => {
+    try {
+      const doc = await ensureSettings(req);
+      return response.ok(res, {
+        maintenance: {
+          enabled: !!doc.maintenanceMode,
+          titleEn: doc.maintenanceTitleEn || 'Under Maintenance',
+          messageEn: doc.maintenanceMessageEn || "Alagare is currently undergoing scheduled maintenance. We'll be back shortly!",
+          titleFr: doc.maintenanceTitleFr || 'Maintenance en cours',
+          messageFr: doc.maintenanceMessageFr || 'Alagare est actuellement en maintenance planifiée. Nous serons bientôt de retour !',
         },
       });
     } catch (error) {
@@ -80,6 +105,10 @@ module.exports = {
         notifyBookings,
         notifyUsers,
         maintenanceMode,
+        maintenanceTitleEn,
+        maintenanceMessageEn,
+        maintenanceTitleFr,
+        maintenanceMessageFr,
       } = req.body;
 
       const update = {};
@@ -117,6 +146,10 @@ module.exports = {
       if (notifyBookings !== undefined) update.notifyBookings = !!notifyBookings;
       if (notifyUsers !== undefined) update.notifyUsers = !!notifyUsers;
       if (maintenanceMode !== undefined) update.maintenanceMode = !!maintenanceMode;
+      if (maintenanceTitleEn !== undefined) update.maintenanceTitleEn = String(maintenanceTitleEn).trim();
+      if (maintenanceMessageEn !== undefined) update.maintenanceMessageEn = String(maintenanceMessageEn).trim();
+      if (maintenanceTitleFr !== undefined) update.maintenanceTitleFr = String(maintenanceTitleFr).trim();
+      if (maintenanceMessageFr !== undefined) update.maintenanceMessageFr = String(maintenanceMessageFr).trim();
 
       let doc = await PlatformSettings.findOne(tenantFilter(req));
       if (!doc) {

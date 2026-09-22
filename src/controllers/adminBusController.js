@@ -262,13 +262,21 @@ module.exports = {
 
   updateHomeContent: async (req, res) => {
     try {
-      const { promoBadge, promoTitle, promoDesc, promoCode } = req.body;
+      const { promoBadge, promoTitle, promoDesc, promoCode, promoDiscountPercent } = req.body;
       const update = {};
 
       if (promoBadge !== undefined) update.promoBadge = promoBadge;
       if (promoTitle !== undefined) update.promoTitle = promoTitle;
       if (promoDesc !== undefined) update.promoDesc = promoDesc;
       if (promoCode !== undefined) update.promoCode = promoCode;
+
+      if (promoDiscountPercent !== undefined && promoDiscountPercent !== '') {
+        const p = Number(promoDiscountPercent);
+        if (!isNaN(p)) update.promoDiscountPercent = Math.min(100, Math.max(0, p));
+      } else if (promoTitle) {
+        const m = promoTitle.match(/(\d{1,3})\s*%/);
+        if (m && Number(m[1]) > 0) update.promoDiscountPercent = Math.min(100, Math.max(0, Number(m[1])));
+      }
 
       if (req.files?.headerImage?.[0]) {
         update.headerImage = fileUrl(req.files.headerImage[0]);

@@ -9,8 +9,17 @@ const auth = (...allowedRoles) => {
             }
             
             
-            if (!user) { 
-                return response.unAuthorize(res, info || { message: "Authentication required" }); 
+            if (!user || user.isDeleted) { 
+                return response.unAuthorize(res, info || { 
+                    isDeleted: true,
+                    message: "This account has been deleted" 
+                }); 
+            }
+            if (user.isBlocked) {
+                return response.unAuthorize(res, { 
+                    isBlocked: true,
+                    message: "Account is blocked" 
+                });
             }
 
             if (allowedRoles.length === 0) {

@@ -9,7 +9,7 @@ const bookingSchema = new mongoose.Schema(
       ref: 'User',
     },
     passenger: { type: String, required: true, trim: true },
-    email: { type: String, required: true, lowercase: true, trim: true },
+    email: { type: String, default: '', lowercase: true, trim: true },
     phone: { type: String, trim: true },
     route: { type: String, required: true, trim: true },
     routeId: { type: String, trim: true },

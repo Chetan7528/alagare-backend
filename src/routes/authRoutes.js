@@ -13,6 +13,7 @@ const {
   updatePassword,
   myProfile,
   updateProfile,
+  deleteMyAccount,
   getNotificationSettings,
   updateNotificationSettings,
   getNotifications,
@@ -22,11 +23,14 @@ const {
   blockUser,
   validateReferral,
 } = require('@controllers/authController');
+const { getMaintenanceStatus, getPublicSettings } = require('@controllers/settingsController');
 const auth = require('@middlewares/authMiddleware');
 const { upload } = require('@services/fileUpload');
 const busController = require('@controllers/busController');
 
 // Public (still need X-API-Key from global middleware)
+router.get('/maintenance-status', getMaintenanceStatus);
+router.get('/public-settings', getPublicSettings);
 router.post('/register', register);
 router.post('/verify-register', verifyRegister);
 router.post('/validate-referral', validateReferral);
@@ -40,6 +44,9 @@ router.post('/change-password', changePassword);
 // User (protected JWT)
 router.get('/profile', auth(), myProfile);
 router.put('/profile', auth(), upload.single('image'), updateProfile);
+router.delete('/profile', auth(), deleteMyAccount);
+router.post('/delete-account', auth(), deleteMyAccount);
+router.delete('/delete-account', auth(), deleteMyAccount);
 router.put('/password', auth(), updatePassword);
 router.get('/notification-settings', auth(), getNotificationSettings);
 router.put('/notification-settings', auth(), updateNotificationSettings);

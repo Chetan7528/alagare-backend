@@ -36,6 +36,12 @@ module.exports = {
 
       const exists = await User.findOne({ phone });
       if (exists) {
+        if (exists.isDeleted) {
+          return response.badReq(res, {
+            isDeleted: true,
+            message: 'This account was deleted. Please contact support if you wish to restore your account. / Ce compte a été supprimé. Veuillez contacter le support pour le restaurer.',
+          });
+        }
         if (exists.isVerified) {
           return response.badReq(res, { message: 'Phone already registered and verified' });
         }
@@ -201,6 +207,12 @@ module.exports = {
       if (phone) {
         const user = await User.findOne({ phone });
         if (!user) return response.unAuthorize(res, { message: 'No account found with this phone' });
+        if (user.isDeleted) {
+          return response.forbidden(res, {
+            isDeleted: true,
+            message: 'This account has been deleted. Please contact support if you wish to restore it. / Ce compte a été supprimé. Veuillez contacter le support pour le restaurer.',
+          });
+        }
         if (user.isBlocked) return response.unAuthorize(res, { message: 'Your account has been blocked' });
 
         const otp = '7777';
@@ -223,6 +235,12 @@ module.exports = {
 
       const user = await User.findOne({ email });
       if (!user) return response.unAuthorize(res, { message: 'Invalid credentials' });
+      if (user.isDeleted) {
+        return response.forbidden(res, {
+          isDeleted: true,
+          message: 'This account has been deleted. Please contact support if you wish to restore it. / Ce compte a été supprimé. Veuillez contacter le support pour le restaurer.',
+        });
+      }
       if (user.isBlocked) return response.unAuthorize(res, { message: 'Your account has been blocked' });
 
       const isMatch = await bcrypt.compare(password, user.password);
@@ -260,6 +278,12 @@ module.exports = {
 
       const user = await User.findOne({ phone });
       if (!user) return response.unAuthorize(res, { message: 'User not found' });
+      if (user.isDeleted) {
+        return response.forbidden(res, {
+          isDeleted: true,
+          message: 'This account has been deleted. Please contact support if you wish to restore it. / Ce compte a été supprimé. Veuillez contacter le support pour le restaurer.',
+        });
+      }
 
       user.lastLogin = new Date();
       if (!user.isVerified) user.isVerified = true; // Auto verify if they manage to login
@@ -460,7 +484,12 @@ module.exports = {
   myProfile: async (req, res) => {
     try {
       let user = await User.findById(req.user._id).select('-password');
-      if (!user) return response.notFound(res, { message: 'User not found' });
+      if (!user || user.isDeleted) {
+        return response.unAuthorize(res, {
+          isDeleted: true,
+          message: 'This account has been deleted. / Ce compte a été supprimé.',
+        });
+      }
       
       if (!user.referralCode) {
         user.referralCode = generateReferralCode(user.fullname, user.phone);
@@ -470,10 +499,20 @@ module.exports = {
       const Booking = require('../models/Booking');
       const userEmail = (user.email || '').trim();
       const userPhone = (user.phone || '').trim();
+      const userDigits = userPhone.replace(/\D/g, '');
       const matchQueries = [];
+      if (user._id) matchQueries.push({ user: user._id });
       if (userEmail) matchQueries.push({ email: { $regex: new RegExp('^' + userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } });
-      if (userPhone) matchQueries.push({ phone: userPhone });
-      const userBookings = await Booking.find(matchQueries.length > 0 ? { $or: matchQueries } : { email: userEmail });
+      if (userPhone) {
+        matchQueries.push({ phone: userPhone });
+      }
+      if (userDigits && userDigits.length >= 7) {
+        matchQueries.push({ phone: { $regex: new RegExp(userDigits.slice(-10) + '$') } });
+      }
+      if (user.fullname && user.fullname.trim()) {
+        matchQueries.push({ passenger: { $regex: new RegExp('^' + user.fullname.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } });
+      }
+      const userBookings = await Booking.find(matchQueries.length > 0 ? { $or: matchQueries } : { user: user._id });
       const confirmedCount = userBookings.filter((b) => b.status === 'confirmed').length;
       const totalTrips = userBookings.length;
       const totalSpent = userBookings.reduce((sum, b) => sum + (b.amount || 0), 0);
@@ -516,6 +555,25 @@ module.exports = {
         '-password',
       );
       return response.ok(res, { message: 'Profile updated', data: user });
+    } catch (error) {
+      return response.error(res, error);
+    }
+  },
+
+  // User: soft delete own account
+  deleteMyAccount: async (req, res) => {
+    try {
+      const user = await User.findById(req.user._id);
+      if (!user) return response.notFound(res, { message: 'User not found' });
+
+      user.isDeleted = true;
+      user.deletedAt = new Date();
+      await user.save();
+
+      return response.ok(res, {
+        message: 'Account deleted successfully / Compte supprimé avec succès',
+        isDeleted: true,
+      });
     } catch (error) {
       return response.error(res, error);
     }

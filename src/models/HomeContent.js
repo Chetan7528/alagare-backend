@@ -13,6 +13,7 @@ const homeContentSchema = new mongoose.Schema(
       trim: true,
     },
     promoCode: { type: String, default: 'FIRSTRIDE', trim: true },
+    promoDiscountPercent: { type: Number, default: 20, min: 1, max: 100 },
     api_user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ApiUser',

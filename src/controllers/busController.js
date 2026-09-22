@@ -6,6 +6,8 @@ const Booking = require('@models/Booking');
 const City = require('@models/City');
 const Operator = require('@models/Operator');
 const PlatformSettings = require('@models/PlatformSettings');
+const User = require('@models/User');
+const Campaign = require('@models/Campaign');
 const response = require('@responses');
 const { notifyUser } = require('@services/notification');
 
@@ -49,19 +51,23 @@ const userBookingFilter = (req) => {
   if (req.user?._id) {
     userConditions.push({ user: req.user._id });
   }
-  if (req.user?.email) {
+  if (req.user?.email && req.user.email.trim()) {
     userConditions.push({ email: req.user.email.toLowerCase().trim() });
   }
   if (req.user?.phone) {
-    userConditions.push({ phone: req.user.phone.trim() });
-    userConditions.push({ email: `${req.user.phone.trim()}@alagare.com` });
+    const rawPhone = req.user.phone.trim();
+    const digits = rawPhone.replace(/\D/g, '');
+    userConditions.push({ phone: rawPhone });
+    if (digits && digits.length >= 7) {
+      userConditions.push({ phone: { $regex: new RegExp(digits.slice(-10) + '$') } });
+    }
   }
   if (req.user?.fullname) {
     userConditions.push({ passenger: req.user.fullname.trim() });
   }
   return {
     api_user: req.apiUser._id,
-    ...(userConditions.length > 0 ? { $or: userConditions } : { email: req.user?.email || '__no_user__' }),
+    ...(userConditions.length > 0 ? { $or: userConditions } : { user: req.user?._id || '__no_user__' }),
   };
 };
 
@@ -595,10 +601,11 @@ module.exports = {
         busType,
       } = req.body;
 
-      const finalContactEmail = contactEmail || req.user?.email || (phone || req.user?.phone ? `${phone || req.user?.phone}@alagare.com` : 'passenger@alagare.com');
-      if (!routeId || !passengers || !finalContactEmail) {
+      const finalContactEmail = (contactEmail || req.user?.email || '').trim();
+      const finalPhone = (phone || req.user?.phone || '').trim();
+      if (!routeId || !passengers || (!finalContactEmail && !finalPhone)) {
         return response.badReq(res, {
-          message: 'routeId, passengers and contact details are required',
+          message: 'routeId, passengers and contact details (phone or email) are required',
         });
       }
 
@@ -617,54 +624,80 @@ module.exports = {
         });
       }
 
-      // Check first-trip promo constraint if FIRSTRIDE or referral code is used
+      // Check promo code validity if promoCode is provided
       if (promoCode) {
         const cleanPromo = String(promoCode).trim().toUpperCase();
-        if (cleanPromo === 'FIRSTRIDE' || /FIRST/i.test(cleanPromo)) {
-          const prior = await Booking.findOne({
+
+        // 1. Check if user has already used this coupon code in a previous booking
+        const priorUsed = await Booking.findOne({
+          ...userBookingFilter(req),
+          promoCode: cleanPromo,
+          status: { $in: ['confirmed', 'pending'] },
+        });
+        if (priorUsed) {
+          return response.badReq(res, {
+            message: `Coupon code '${cleanPromo}' has already been used on a previous booking. Coupons can only be used once per account.`,
+          });
+        }
+
+        // 2. Check if this is a first-time trip only code (e.g. FIRSTRIDE)
+        const isFirstRide = cleanPromo.startsWith('FIRST') || /FIRST/i.test(cleanPromo);
+        if (isFirstRide) {
+          const priorTrip = await Booking.findOne({
             ...userBookingFilter(req),
             status: { $in: ['confirmed', 'pending'] },
           });
-          if (prior) {
+          if (priorTrip) {
             return response.badReq(res, {
-              message: `${cleanPromo} is only valid for first-time travelers on their initial booking.`,
+              message: `Coupon code '${cleanPromo}' is only valid for first-time travelers on their initial booking.`,
+            });
+          }
+        }
+
+        const Campaign = require('@models/Campaign');
+        const campaign = await Campaign.findOne({
+          code: cleanPromo,
+          status: 'active',
+          ...tenantFilter(req),
+        });
+
+        if (campaign) {
+          if (campaign.isFirstTripOnly) {
+            const prior = await Booking.findOne({
+              ...userBookingFilter(req),
+              status: { $in: ['confirmed', 'pending'] },
+            });
+            if (prior) {
+              return response.badReq(res, {
+                message: `${cleanPromo} is only valid for first-time travelers on their initial booking.`,
+              });
+            }
+          }
+          if (
+            campaign.operator &&
+            campaign.operator.trim().toLowerCase() !== 'all' &&
+            campaign.operator.trim().toLowerCase() !== 'admin' &&
+            campaign.operator.trim().toLowerCase() !== 'alagare'
+          ) {
+            const routeOp = (route.operator || '').trim().toLowerCase();
+            const campaignOp = campaign.operator.trim().toLowerCase();
+            if (routeOp && routeOp !== campaignOp) {
+              return response.badReq(res, {
+                message: `This promo code is only valid for ${campaign.operator} trips.`,
+              });
+            }
+          }
+          if (campaign.routeId && campaign.routeId !== 'all' && campaign.routeId !== route.routeId) {
+            return response.badReq(res, {
+              message: 'Promo code is not applicable for this route.',
             });
           }
         } else {
-          const Campaign = require('@models/Campaign');
-          const campaign = await Campaign.findOne({
-            code: cleanPromo,
-            status: 'active',
-            ...tenantFilter(req),
-          });
-
-          if (campaign) {
-            if (
-              campaign.operator &&
-              campaign.operator.trim().toLowerCase() !== 'all' &&
-              campaign.operator.trim().toLowerCase() !== 'admin' &&
-              campaign.operator.trim().toLowerCase() !== 'alagare'
-            ) {
-              const routeOp = (route.operator || '').trim().toLowerCase();
-              const campaignOp = campaign.operator.trim().toLowerCase();
-              if (routeOp && routeOp !== campaignOp) {
-                return response.badReq(res, {
-                  message: `This promo code is only valid for ${campaign.operator} trips.`,
-                });
-              }
-            }
-            if (campaign.routeId && campaign.routeId !== 'all' && campaign.routeId !== route.routeId) {
-              return response.badReq(res, {
-                message: 'Promo code is not applicable for this route.',
-              });
-            }
-          } else {
-            const isReferralCode = await User.findOne({ referralCode: cleanPromo, isDeleted: { $ne: true } });
-            if (isReferralCode) {
-              return response.badReq(res, {
-                message: 'Referral codes can only be used during Sign Up. Please enter a valid coupon code.',
-              });
-            }
+          const isReferralCode = await User.findOne({ referralCode: cleanPromo, isDeleted: { $ne: true } });
+          if (isReferralCode) {
+            return response.badReq(res, {
+              message: 'Referral codes can only be used during Sign Up. Please enter a valid coupon code.',
+            });
           }
         }
       }
@@ -724,9 +757,9 @@ module.exports = {
       const booking = await Booking.create({
         ref: bookingRef,
         user: req.user?._id,
-        passenger: passengerName || req.user?.fullname || (finalContactEmail.includes('@alagare.com') ? (phone || req.user?.phone || 'Passenger') : finalContactEmail.split('@')[0]),
+        passenger: passengerName || req.user?.fullname || finalPhone || 'Passenger',
         email: finalContactEmail,
-        phone: phone || req.user?.phone || '',
+        phone: finalPhone,
         route: `${route.from} → ${route.to}`,
         routeId: route.routeId,
         operator: route.operator,
@@ -751,7 +784,7 @@ module.exports = {
         paymentMethod: paymentMethod || 'stripe',
         paymentIntentId: paymentIntentId || '',
         paymentStatus: paymentStatus || 'paid',
-        api_user: req.apiUser._id,
+        api_user: req.apiUser?._id || undefined,
       });
 
       // Deduct travel credit if travel credit code was used
@@ -772,7 +805,7 @@ module.exports = {
         'bookingConfirmed',
         'Booking Confirmed',
         `Your booking ${bookingRef} for ${route.from} → ${route.to} is confirmed.`,
-      );
+      ).catch((e) => console.error('Notify user error:', e));
 
       return response.created(res, {
         message: 'Booking confirmed successfully',
@@ -781,17 +814,18 @@ module.exports = {
           status: booking.status,
           route: toPublicRoute(route),
           passengers,
-          contactEmail,
+          contactEmail: finalContactEmail,
           passengerName: booking.passenger,
-          phone: phone || '',
+          phone: finalPhone || phone || '',
           paymentMethod: paymentMethod || '',
           seats: seatList,
-          amount: pricing.total,
+          amount: finalAmount,
           pricing,
-          api_user: req.apiUser.email,
+          api_user: req.apiUser?.email || '',
         },
       });
     } catch (error) {
+      console.error('Book bus error:', error);
       return response.error(res, error);
     }
   },
@@ -864,11 +898,37 @@ module.exports = {
       const promoCode = String(code).trim().toUpperCase();
       const amount = Number(totalAmount) || 0;
 
+      // 0. Check if this account has already used this promo code in a previous booking
+      const userFilter = userBookingFilter(req);
+      const priorUsed = await Booking.findOne({
+        ...userFilter,
+        promoCode,
+        status: { $in: ['confirmed', 'pending'] },
+      });
+      if (priorUsed) {
+        return response.badReq(res, {
+          message: `Coupon code '${promoCode}' has already been used on a previous booking. Each coupon can only be used once per account.`,
+        });
+      }
+
+      // 0b. Check if this is a first-time trip code (e.g. FIRSTRIDE, FIRSTRIDE20, or containing FIRST)
+      const isFirstRidePromo = promoCode.startsWith('FIRST') || /FIRST/i.test(promoCode);
+      if (isFirstRidePromo) {
+        const priorTrip = await Booking.findOne({
+          ...userFilter,
+          status: { $in: ['confirmed', 'pending'] },
+        });
+        if (priorTrip) {
+          return response.badReq(res, {
+            message: `Coupon code '${promoCode}' is only valid for first-time travelers on their initial booking.`,
+          });
+        }
+      }
+
       // Helper to check if the user has any prior active/confirmed trips
       const hasPriorConfirmedTrips = async () => {
-        const filter = userBookingFilter(req);
         const prior = await Booking.findOne({
-          ...filter,
+          ...userFilter,
           status: { $in: ['confirmed', 'pending'] },
         });
         return !!prior;
@@ -950,29 +1010,49 @@ module.exports = {
         });
       }
 
-      // 2. Check App Home Promo Banner Code (FIRSTRIDE / Save 20% on First Trip)
-      const home = await HomeContent.findOne({
-        ...tenantFilter(req),
-      });
-      if (home && home.promoCode && home.promoCode.trim().toUpperCase() === promoCode) {
-        const isFirstOnly = promoCode === 'FIRSTRIDE' || /FIRST/i.test(home.promoTitle || '') || /FIRST/i.test(home.promoCode || '') || /FIRST/i.test(home.promoDesc || '');
-        if (isFirstOnly) {
-          const alreadyTravelled = await hasPriorConfirmedTrips();
-          if (alreadyTravelled) {
-            return response.badReq(res, {
-              message: `${promoCode} is only valid for first-time travelers on their initial booking.`,
-            });
+      // 2. Check App Home Promo Banner Code (e.g. FIRSTRIDE / FIRSTRIDE20 / Admin configured code)
+      let home = await HomeContent.findOne(tenantFilter(req));
+      if (!home) {
+        home = await HomeContent.findOne();
+      }
+
+      const configuredCode = (home?.promoCode || '').trim().toUpperCase();
+      const descMatch = (home?.promoDesc || '').match(/(?:code\s+)([A-Z0-9_-]+)/i);
+      const descCode = descMatch ? descMatch[1].trim().toUpperCase() : null;
+
+      const isHomeMatch = home && (
+        (configuredCode && configuredCode === promoCode) ||
+        (descCode && descCode === promoCode) ||
+        (promoCode === 'FIRSTRIDE') ||
+        (promoCode.startsWith('FIRSTRIDE'))
+      );
+
+      if (isHomeMatch) {
+        let discountPercent = Number(home?.promoDiscountPercent);
+        if (discountPercent === undefined || isNaN(discountPercent) || discountPercent <= 0) {
+          const matchPercent = (home?.promoTitle || '').match(/(\d{1,3})\s*%/);
+          const matchDescPercent = (home?.promoDesc || '').match(/(\d{1,3})\s*%/);
+          const matchCodePercent = (configuredCode || promoCode).match(/(\d{1,3})$/);
+          if (matchPercent && Number(matchPercent[1]) > 0) {
+            discountPercent = Number(matchPercent[1]);
+          } else if (matchDescPercent && Number(matchDescPercent[1]) > 0) {
+            discountPercent = Number(matchDescPercent[1]);
+          } else if (matchCodePercent && Number(matchCodePercent[1]) > 0) {
+            discountPercent = Number(matchCodePercent[1]);
+          } else {
+            discountPercent = 20;
           }
         }
 
-        const discountPercent = 20;
+        discountPercent = Math.min(100, Math.max(0, discountPercent));
+
         const discount = Math.round(((amount * discountPercent) / 100) * 100) / 100;
         const finalAmount = Math.max(0, Math.round((amount - discount) * 100) / 100);
 
         return response.ok(res, {
           message: 'Promo banner discount applied!',
           code: promoCode,
-          title: home.promoTitle || 'Special Offer',
+          title: home?.promoTitle || 'Special Offer',
           discountPercent,
           discount,
           finalAmount,
@@ -1073,7 +1153,7 @@ module.exports = {
         'tripUpdates',
         'Booking Cancelled',
         `Your booking ${booking.ref} for ${booking.route} has been cancelled.`,
-      );
+      ).catch((e) => console.error('Notify user error:', e));
 
       return response.ok(res, {
         message: 'Ticket cancelled successfully',

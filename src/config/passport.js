@@ -12,6 +12,12 @@ passport.use(new JwtStrategy(opts, async (jwt_payload, done) => {
     try {
         const user = await User.findById(jwt_payload.id);
         if (user) {
+            if (user.isDeleted) {
+                return done(null, false, { isDeleted: true, message: 'This account has been deleted' });
+            }
+            if (user.isBlocked) {
+                return done(null, false, { isBlocked: true, message: 'This account has been blocked' });
+            }
             return done(null, user);
         } else {
             return done(null, false, { message: 'User not found' });

@@ -7,10 +7,13 @@ const PLATFORM_SETTINGS_DEFAULT = {
   timezone: 'Europe/Berlin',
   commissionRate: 5,
   taxRate: 0,
-  serviceFee: 0,
   notifyBookings: true,
   notifyUsers: true,
   maintenanceMode: false,
+  maintenanceTitleEn: 'Under Maintenance',
+  maintenanceMessageEn: "Alagare is currently undergoing scheduled maintenance. We'll be back shortly!",
+  maintenanceTitleFr: 'Maintenance en cours',
+  maintenanceMessageFr: 'Alagare est actuellement en maintenance planifiée. Nous serons bientôt de retour !',
 };
 
 const CURRENCY_SYMBOLS = {

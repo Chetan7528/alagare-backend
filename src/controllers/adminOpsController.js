@@ -244,8 +244,10 @@ module.exports = {
       
       const statsMap = {};
       bookings.forEach(b => {
+        const userId = b.user ? String(b.user) : null;
         const email = (b.email || '').toLowerCase().trim();
         const phone = (b.phone || '').trim();
+        const digits = phone.replace(/\D/g, '');
         
         const registerStat = (key) => {
           if (!key) return;
@@ -255,14 +257,18 @@ module.exports = {
           statsMap[key].totalSpent += (b.amount || 0);
         };
 
+        if (userId) registerStat(userId);
         if (email) registerStat(email);
         if (phone) registerStat(phone);
+        if (digits && digits.length >= 7) registerStat(digits.slice(-10));
       });
 
       const formatted = users.map((u) => {
+        const uId = String(u._id);
         const email = (u.email || '').toLowerCase().trim();
         const phone = (u.phone || '').trim();
-        const stats = statsMap[email] || (phone ? statsMap[phone] : null) || { totalTrips: 0, confirmedCount: 0, totalSpent: 0 };
+        const uDigits = phone.replace(/\D/g, '');
+        const stats = statsMap[uId] || statsMap[email] || (phone ? statsMap[phone] : null) || (uDigits.length >= 7 ? statsMap[uDigits.slice(-10)] : null) || { totalTrips: 0, confirmedCount: 0, totalSpent: 0 };
         const totalPoints = (stats.confirmedCount > 0 ? stats.confirmedCount : stats.totalTrips) * 150 + Math.round(stats.totalSpent * 2);
 
         let tripTier = 'Standard';

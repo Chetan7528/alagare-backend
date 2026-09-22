@@ -40,6 +40,7 @@ module.exports = (app) => {
   app.use('/api-users', apiUserRoutes);
   app.use('/setup', setupRoutes);
   app.use('/auth', authRoutes);
+  app.use('/api/auth', authRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/v1', v1Routes);
 

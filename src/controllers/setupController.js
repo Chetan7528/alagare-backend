@@ -61,6 +61,16 @@ module.exports = {
       }
 
       const content = await ensureAppContent(apiUser._id);
+      const PlatformSettings = require('@models/PlatformSettings');
+      const settings = await PlatformSettings.findOne({ api_user: apiUser._id });
+
+      const maintenance = {
+        enabled: !!settings?.maintenanceMode,
+        titleEn: settings?.maintenanceTitleEn || 'Under Maintenance',
+        messageEn: settings?.maintenanceMessageEn || "Alagare is currently undergoing scheduled maintenance. We'll be back shortly!",
+        titleFr: settings?.maintenanceTitleFr || 'Maintenance en cours',
+        messageFr: settings?.maintenanceMessageFr || 'Alagare est actuellement en maintenance planifiée. Nous serons bientôt de retour !',
+      };
 
       return response.ok(res, {
         message: 'Application setup loaded',
@@ -68,6 +78,7 @@ module.exports = {
         apiKey: apiUser.api_key,
         keys: buildClientKeys(apiUser),
         content,
+        maintenance,
       });
     } catch (error) {
       return response.error(res, error);

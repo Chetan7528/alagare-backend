@@ -31,6 +31,7 @@ app.use(passport.initialize());
 
 
 const apiKeyAuth = require('@middlewares/apiKeyMiddleware');
+const maintenanceMiddleware = require('@middlewares/maintenanceMiddleware');
 app.use((req, res, next) => {
   if (req.path.startsWith('/api-users')) {
     return next();
@@ -42,7 +43,10 @@ app.use((req, res, next) => {
   if (req.path === '/' || req.path === '') {
     return next();
   }
-  return apiKeyAuth(req, res, next);
+  return apiKeyAuth(req, res, (err) => {
+    if (err) return next(err);
+    return maintenanceMiddleware(req, res, next);
+  });
 });
 
 const routes = require('./routes');

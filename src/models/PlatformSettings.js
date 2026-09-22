@@ -19,8 +19,27 @@ const platformSettingsSchema = new mongoose.Schema(
     taxRate: { type: Number, default: 0, min: 0 },
     serviceFee: { type: Number, default: 0, min: 0 },
     notifyBookings: { type: Boolean, default: true },
-    notifyUsers: { type: Boolean, default: true },
     maintenanceMode: { type: Boolean, default: false },
+    maintenanceTitleEn: {
+      type: String,
+      default: 'Under Maintenance',
+      trim: true,
+    },
+    maintenanceMessageEn: {
+      type: String,
+      default: "Alagare is currently undergoing scheduled maintenance. We'll be back shortly!",
+      trim: true,
+    },
+    maintenanceTitleFr: {
+      type: String,
+      default: 'Maintenance en cours',
+      trim: true,
+    },
+    maintenanceMessageFr: {
+      type: String,
+      default: 'Alagare est actuellement en maintenance planifiée. Nous serons bientôt de retour !',
+      trim: true,
+    },
     api_user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ApiUser',
