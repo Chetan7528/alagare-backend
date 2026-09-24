@@ -6,6 +6,7 @@ const User = require('@models/User');
 const PlatformSettings = require('@models/PlatformSettings');
 const response = require('@responses');
 const { notifyUser } = require('@services/notification');
+const { syncUserMembership, TIER_RANK, calculateTier } = require('../helper/membershipHelper');
 
 const tenantFilter = (req) => ({ api_user: req.apiUser._id });
 
@@ -227,6 +228,7 @@ module.exports = {
 
         if (user) {
           await notifyUser(user, category, title, content).catch((e) => console.error('Notification error:', e));
+          await syncUserMembership(user).catch(() => {});
         }
       }
 
@@ -238,59 +240,53 @@ module.exports = {
 
   listUsers: async (req, res) => {
     try {
-      const TIER_RANK = { standard: 0, silver: 1, gold: 2, platinum: 3 };
-      const users = await User.find({ ...tenantFilter(req), isDeleted: { $ne: true }, role: { $ne: 'admin' } }).select('-password').sort({ createdAt: -1 });
-      const bookings = await Booking.find(tenantFilter(req));
-      
-      const statsMap = {};
-      bookings.forEach(b => {
-        const userId = b.user ? String(b.user) : null;
-        const email = (b.email || '').toLowerCase().trim();
-        const phone = (b.phone || '').trim();
-        const digits = phone.replace(/\D/g, '');
-        
-        const registerStat = (key) => {
-          if (!key) return;
-          if (!statsMap[key]) statsMap[key] = { totalTrips: 0, confirmedCount: 0, totalSpent: 0 };
-          statsMap[key].totalTrips += 1;
-          if (b.status === 'confirmed') statsMap[key].confirmedCount += 1;
-          statsMap[key].totalSpent += (b.amount || 0);
-        };
-
-        if (userId) registerStat(userId);
-        if (email) registerStat(email);
-        if (phone) registerStat(phone);
-        if (digits && digits.length >= 7) registerStat(digits.slice(-10));
-      });
+      const users = await User.find({ ...tenantFilter(req), isDeleted: { $ne: true }, role: { $ne: 'admin' } })
+        .select('-password')
+        .sort({ createdAt: -1 })
+        .lean();
+      const bookings = await Booking.find({}).lean();
 
       const formatted = users.map((u) => {
         const uId = String(u._id);
-        const email = (u.email || '').toLowerCase().trim();
-        const phone = (u.phone || '').trim();
-        const uDigits = phone.replace(/\D/g, '');
-        const stats = statsMap[uId] || statsMap[email] || (phone ? statsMap[phone] : null) || (uDigits.length >= 7 ? statsMap[uDigits.slice(-10)] : null) || { totalTrips: 0, confirmedCount: 0, totalSpent: 0 };
-        const totalPoints = (stats.confirmedCount > 0 ? stats.confirmedCount : stats.totalTrips) * 150 + Math.round(stats.totalSpent * 2);
+        const uEmail = (u.email || '').toLowerCase().trim();
+        const uPhone = (u.phone || '').trim();
+        const uDigits = uPhone.replace(/\D/g, '');
 
-        let tripTier = 'Standard';
-        if (stats.totalTrips >= 5) tripTier = 'Platinum';
-        else if (stats.totalTrips >= 2) tripTier = 'Gold';
+        const userBookings = bookings.filter((b) => {
+          if (b.user && String(b.user) === uId) return true;
+          if (uEmail && b.email && b.email.toLowerCase().trim() === uEmail) return true;
+          if (uPhone && b.phone && b.phone.trim() === uPhone) return true;
+          if (uDigits && uDigits.length >= 7 && b.phone) {
+            const bDigits = String(b.phone).replace(/\D/g, '');
+            if (bDigits.endsWith(uDigits.slice(-10)) || uDigits.endsWith(bDigits.slice(-10))) return true;
+          }
+          return false;
+        });
 
-        const storedMember = u.membership || 'Standard';
-        const member = TIER_RANK[tripTier.toLowerCase()] > (TIER_RANK[storedMember.toLowerCase()] ?? 0) ? tripTier : storedMember;
+        const totalTrips = userBookings.length;
+        const confirmedCount = userBookings.filter((b) => b.status === 'confirmed').length;
+        const totalSpent = userBookings.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+        const calculatedPoints = (confirmedCount > 0 ? confirmedCount : totalTrips) * 150 + Math.round(totalSpent * 2);
+        const totalPoints = Math.max(Number(u.travelPoints) || 0, calculatedPoints);
+
+        const member = u.membership || calculateTier(totalTrips, totalPoints) || 'Standard';
 
         return {
           id: u._id,
           _id: u._id,
           name: u.fullname || u.name || 'User',
-          email: u.email,
+          email: u.email || '',
           phone: u.phone || 'N/A',
           member: member,
           status: u.isBlocked ? 'inactive' : 'active',
-          trips: stats.totalTrips,
+          trips: totalTrips,
           points: totalPoints,
-          joined: u.createdAt ? new Date(u.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          joined: u.createdAt
+            ? new Date(u.createdAt).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0],
         };
       });
+
       return response.ok(res, { users: formatted });
     } catch (error) {
       return response.error(res, error);
@@ -300,15 +296,23 @@ module.exports = {
   updateUser: async (req, res) => {
     try {
       const { name, fullname, email, phone, member, membership, status } = req.body;
+      const updateData = {
+        ...(name || fullname ? { fullname: fullname || name } : {}),
+        ...(phone !== undefined ? { phone: String(phone).trim() } : {}),
+        ...(member || membership ? { membership: member || membership } : {}),
+        ...(status !== undefined ? { isBlocked: status === 'inactive' } : {}),
+      };
+
+      const updateQuery = { $set: updateData };
+      if (email && String(email).trim()) {
+        updateData.email = String(email).toLowerCase().trim();
+      } else if (email === '' || email === null) {
+        updateQuery.$unset = { email: 1 };
+      }
+
       const user = await User.findByIdAndUpdate(
         req.params.id,
-        {
-          ...(name || fullname ? { fullname: fullname || name } : {}),
-          ...(email ? { email: email.toLowerCase().trim() } : {}),
-          ...(phone !== undefined ? { phone } : {}),
-          ...(member || membership ? { membership: member || membership } : {}),
-          ...(status !== undefined ? { isBlocked: status === 'inactive' } : {}),
-        },
+        updateQuery,
         { new: true }
       ).select('-password');
       if (!user) return response.notFound(res, { message: 'User not found' });

@@ -10,6 +10,7 @@ const User = require('@models/User');
 const Campaign = require('@models/Campaign');
 const response = require('@responses');
 const { notifyUser } = require('@services/notification');
+const { syncUserMembership } = require('../helper/membershipHelper');
 
 const tenantFilter = (req) => ({ api_user: req.apiUser._id });
 
@@ -800,6 +801,22 @@ module.exports = {
         }
       }
 
+      // Automatically sync and persist user membership tier and points
+      try {
+        let bookingUser = req.user;
+        if (!bookingUser && (finalPhone || finalContactEmail)) {
+          const orFilter = [];
+          if (finalPhone) orFilter.push({ phone: finalPhone.trim() });
+          if (finalContactEmail) orFilter.push({ email: finalContactEmail.toLowerCase().trim() });
+          bookingUser = await User.findOne({ $or: orFilter });
+        }
+        if (bookingUser) {
+          await syncUserMembership(bookingUser);
+        }
+      } catch (syncErr) {
+        console.error('Membership sync error on booking:', syncErr);
+      }
+
       await notifyUser(
         req.user,
         'bookingConfirmed',
@@ -1147,6 +1164,13 @@ module.exports = {
 
       booking.status = 'cancelled';
       await booking.save();
+
+      // Recalculate user membership and points
+      try {
+        if (booking.user || req.user?._id) {
+          await syncUserMembership(booking.user || req.user._id);
+        }
+      } catch (e) {}
 
       await notifyUser(
         req.user,

@@ -496,36 +496,11 @@ module.exports = {
         await user.save();
       }
 
-      const Booking = require('../models/Booking');
-      const userEmail = (user.email || '').trim();
-      const userPhone = (user.phone || '').trim();
-      const userDigits = userPhone.replace(/\D/g, '');
-      const matchQueries = [];
-      if (user._id) matchQueries.push({ user: user._id });
-      if (userEmail) matchQueries.push({ email: { $regex: new RegExp('^' + userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } });
-      if (userPhone) {
-        matchQueries.push({ phone: userPhone });
-      }
-      if (userDigits && userDigits.length >= 7) {
-        matchQueries.push({ phone: { $regex: new RegExp(userDigits.slice(-10) + '$') } });
-      }
-      if (user.fullname && user.fullname.trim()) {
-        matchQueries.push({ passenger: { $regex: new RegExp('^' + user.fullname.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } });
-      }
-      const userBookings = await Booking.find(matchQueries.length > 0 ? { $or: matchQueries } : { user: user._id });
-      const confirmedCount = userBookings.filter((b) => b.status === 'confirmed').length;
-      const totalTrips = userBookings.length;
-      const totalSpent = userBookings.reduce((sum, b) => sum + (b.amount || 0), 0);
-      const totalPoints = (user.travelPoints || 0) + (confirmedCount > 0 ? confirmedCount : totalTrips) * 150 + Math.round(totalSpent * 2);
-
-      const TIER_RANK = { standard: 0, silver: 1, gold: 2, platinum: 3 };
-      let tripTier = 'Standard';
-      if (totalTrips >= 5 || totalPoints >= 2000) tripTier = 'Platinum';
-      else if (totalTrips >= 2 || totalPoints >= 800) tripTier = 'Gold';
-
-      const storedMember = user.membership || 'Standard';
-      const computedMember =
-        TIER_RANK[tripTier.toLowerCase()] > (TIER_RANK[storedMember.toLowerCase()] ?? 0) ? tripTier : storedMember;
+      const { syncUserMembership } = require('../helper/membershipHelper');
+      const syncResult = await syncUserMembership(user);
+      const totalTrips = syncResult?.totalTrips ?? 0;
+      const totalPoints = syncResult?.totalPoints ?? (user.travelPoints || 0);
+      const computedMember = syncResult?.membership ?? (user.membership || 'Standard');
 
       const userData = user.toObject();
       userData.trips = totalTrips;

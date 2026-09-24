@@ -14,6 +14,7 @@ const response = require('@responses');
 const { fileUrl } = require('@services/fileUpload');
 const { notifyUser, notifyAllUsers } = require('@services/notification');
 const sycapay = require('@services/sycapayService');
+const { syncUserMembership } = require('../helper/membershipHelper');
 
 const getOperatorFilter = async (req) => {
   const app = await OperatorApplication.findOne({
@@ -369,6 +370,7 @@ const updateBookingStatus = async (req, res) => {
 
       if (user) {
         await notifyUser(user, category, title, content).catch((e) => console.error('Notification error:', e));
+        await syncUserMembership(user).catch(() => {});
       }
     }
 

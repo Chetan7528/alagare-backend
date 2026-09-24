@@ -17,13 +17,27 @@ const ensureAppContent = async (apiUserId) => {
     await doc.save();
   }
   return {
-    termsTitle: doc.termsTitle,
-    termsBody: doc.termsBody,
-    privacyTitle: doc.privacyTitle,
-    privacyBody: doc.privacyBody,
+    termsTitleEn: doc.termsTitleEn || doc.termsTitle || 'Terms of Service',
+    termsTitleFr: doc.termsTitleFr || "Conditions Générales d'Utilisation",
+    termsTitle: doc.termsTitle || doc.termsTitleEn || 'Terms of Service',
+    termsBodyEn: doc.termsBodyEn || doc.termsBody || '',
+    termsBodyFr: doc.termsBodyFr || '',
+    termsBody: doc.termsBody || doc.termsBodyEn || '',
+
+    privacyTitleEn: doc.privacyTitleEn || doc.privacyTitle || 'Privacy Policy',
+    privacyTitleFr: doc.privacyTitleFr || 'Politique de Confidentialité',
+    privacyTitle: doc.privacyTitle || doc.privacyTitleEn || 'Privacy Policy',
+    privacyBodyEn: doc.privacyBodyEn || doc.privacyBody || '',
+    privacyBodyFr: doc.privacyBodyFr || '',
+    privacyBody: doc.privacyBody || doc.privacyBodyEn || '',
+
     faqs: (doc.faqs || []).map((f) => ({
-      question: f.question,
-      answer: f.answer,
+      questionEn: f.questionEn || f.question || '',
+      answerEn: f.answerEn || f.answer || '',
+      questionFr: f.questionFr || f.question || '',
+      answerFr: f.answerFr || f.answer || '',
+      question: f.question || f.questionEn || '',
+      answer: f.answer || f.answerEn || '',
     })),
   };
 };
